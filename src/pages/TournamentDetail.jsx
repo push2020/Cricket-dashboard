@@ -5,6 +5,7 @@ import {
   getTeams,
   getFixtures,
   getStandings,
+  getTournamentStats,
   createTeam,
   deleteTeam,
   generateFixtures,
@@ -510,6 +511,79 @@ function StandingsTab({ standings, tournament, loading }) {
   );
 }
 
+/** Renders a single highlight stat card */
+function StatCard({ icon, label, value, sub }) {
+  return (
+    <div className="stat-card">
+      <div className="stat-card-icon">{icon}</div>
+      <div className="stat-card-label">{label}</div>
+      {value
+        ? <div className="stat-card-value">{value}</div>
+        : <div className="stat-card-empty">No data yet</div>}
+      {sub && value && <div className="stat-card-sub">{sub}</div>}
+    </div>
+  );
+}
+
+/** Renders the Highlights tab — fun tournament stats */
+function HighlightsTab({ tournamentId }) {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const { data } = await getTournamentStats(tournamentId);
+        setStats(data);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [tournamentId]);
+
+  if (loading) {
+    return <div className="loading-wrap"><div className="spinner" />Computing stats…</div>;
+  }
+
+  const { biggestWin, highestScore, winStreaks } = stats ?? {};
+
+  return (
+    <div>
+      <div className="stat-cards-grid">
+        <StatCard
+          icon="💥"
+          label="Biggest Win"
+          value={biggestWin?.resultNote || (biggestWin ? `${biggestWin.winnerName} won by ${biggestWin.margin} runs` : null)}
+          sub={biggestWin ? `${biggestWin.winnerName} vs ${biggestWin.loserName}` : null}
+        />
+        <StatCard
+          icon="🏏"
+          label="Highest Score"
+          value={highestScore ? `${highestScore.runs}/${highestScore.wickets}` : null}
+          sub={highestScore ? `${highestScore.teamName} vs ${highestScore.againstName}` : null}
+        />
+        <div className="stat-card">
+          <div className="stat-card-icon">🔥</div>
+          <div className="stat-card-label">Win Streaks</div>
+          {winStreaks && winStreaks.length > 0 ? (
+            <div className="stat-card-streaks">
+              {winStreaks.map(({ teamName, streak }) => (
+                <div key={teamName} className="stat-card-streak-row">
+                  <span className="stat-card-streak-name">{teamName}</span>
+                  <span className="stat-card-streak-count">{streak} in a row</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="stat-card-empty">No streaks yet</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Tournament Detail page */
 export default function TournamentDetail() {
   const { id } = useParams();
@@ -596,6 +670,7 @@ export default function TournamentDetail() {
     { key: 'fixtures', label: 'Group Stage' },
     ...(tournament.fixturesGenerated ? [{ key: 'playoffs', label: tournament.playoffGenerated ? '🏆 Playoffs' : 'Playoffs' }] : []),
     { key: 'standings', label: 'Standings' },
+    ...(completedMatches > 0 ? [{ key: 'highlights', label: '⭐ Highlights' }] : []),
   ];
 
   return (
@@ -668,6 +743,9 @@ export default function TournamentDetail() {
           )}
           {activeTab === 'standings' && (
             <StandingsTab standings={standings} tournament={tournament} loading={standingsLoading} />
+          )}
+          {activeTab === 'highlights' && (
+            <HighlightsTab tournamentId={id} />
           )}
         </div>
       </div>

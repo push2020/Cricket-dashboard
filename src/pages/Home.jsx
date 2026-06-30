@@ -73,8 +73,11 @@ export default function Home() {
               <button className="btn btn-primary btn-lg" onClick={() => navigate('/create')}>
                 + New Tournament
               </button>
+              <button className="btn btn-ghost btn-lg" onClick={() => navigate('/hall-of-fame')}>
+                🏆 Hall of Fame
+              </button>
               {tournaments.length > 0 && (
-                <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', marginLeft: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', marginLeft: '0.5rem', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--color-green)', lineHeight: 1 }}>
                       {activeTournaments}

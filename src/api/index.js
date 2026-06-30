@@ -8,6 +8,8 @@ import { KEYS, getAll, findById, insert, update, remove, removeWhere } from '../
 import { newId } from '../utils/ids';
 import { generateRoundRobin } from '../utils/roundRobin';
 import { computeStandings } from '../utils/standings';
+import { computeTournamentStats } from '../utils/tournamentStats';
+import { computeHallOfFame } from '../utils/hallOfFame';
 
 /** Returns a resolved promise in axios response shape */
 function ok(data) {
@@ -333,4 +335,28 @@ export function enterResult(id, { homeInnings, awayInnings, winner, resultNote, 
   }
 
   return ok(populateFixtureFull(updated, getAll(KEYS.teams), getAll(KEYS.tournaments)));
+}
+
+/**
+ * Returns highlight stats for a single tournament — biggest win, highest score, win streaks.
+ * Only completed group-stage fixtures are counted.
+ */
+export function getTournamentStats(tournamentId) {
+  const allTeams = getAll(KEYS.teams);
+  const fixtures = getAll(KEYS.fixtures)
+    .filter((f) => f.tournamentId === tournamentId)
+    .map((f) => populateFixture(f, allTeams));
+  return ok(computeTournamentStats(fixtures));
+}
+
+/**
+ * Returns all-time aggregated stats across every tournament, grouped by team name.
+ * Titles are credited for Final match winners; wins/losses from group fixtures only.
+ */
+export function getHallOfFame() {
+  return ok(computeHallOfFame(
+    getAll(KEYS.tournaments),
+    getAll(KEYS.teams),
+    getAll(KEYS.fixtures)
+  ));
 }

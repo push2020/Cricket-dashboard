@@ -141,6 +141,11 @@
 
 /* ─── Reset ──────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Hide scrollbar everywhere — scroll functionality still works */
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { display: none; }
+
 html { font-size: 16px; scroll-behavior: smooth; }
 
 body {
@@ -201,7 +206,7 @@ input, select, textarea { font-family: inherit; }
 /* ─── Page header ─────────────────────────────────────────────────────── */
 .page-header { margin-bottom: 2rem; }
 .page-header-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
-.page-title { font-size: 1.9rem; font-weight: 900; color: var(--text-primary); letter-spacing: -0.04em; }
+.page-title { font-size: 1.9rem; font-weight: 900; color: var(--text-primary); letter-spacing: -0.04em; overflow-wrap: break-word; word-break: break-word; }
 .page-subtitle { font-size: 0.95rem; color: var(--text-secondary); margin-top: 0.3rem; }
 
 /* ─── Buttons ─────────────────────────────────────────────────────────── */
@@ -346,7 +351,7 @@ input, select, textarea { font-family: inherit; }
 }
 .tournament-card:hover::before { opacity: 1; animation: shimmer 1.2s ease infinite; }
 .tournament-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.75rem; }
-.tournament-name { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); line-height: 1.3; }
+.tournament-name { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); line-height: 1.3; overflow-wrap: break-word; word-break: break-word; }
 .tournament-description { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem; line-height: 1.5; }
 .tournament-meta { display: flex; gap: 1rem; font-size: 0.8rem; color: var(--text-muted); }
 .tournament-meta span { display: flex; align-items: center; gap: 0.3rem; }
@@ -428,7 +433,7 @@ input, select, textarea { font-family: inherit; }
   display: flex; align-items: flex-start; justify-content: space-between;
   flex-wrap: wrap; gap: 1rem;
 }
-.tournament-hero-title { font-size: 2.1rem; font-weight: 900; color: var(--text-primary); margin-bottom: 0.4rem; letter-spacing: -0.03em; }
+.tournament-hero-title { font-size: 2.1rem; font-weight: 900; color: var(--text-primary); margin-bottom: 0.4rem; letter-spacing: -0.03em; overflow-wrap: break-word; word-break: break-word; }
 .tournament-hero-desc { color: var(--text-secondary); font-size: 0.95rem; }
 .tournament-hero-stats {
   position: relative; z-index: 1; display: flex; margin-top: 1.75rem; flex-wrap: wrap;
@@ -489,7 +494,7 @@ input, select, textarea { font-family: inherit; }
 .fixture-card.completed:hover { border-color: rgba(22,163,74,0.45); }
 .fixture-card.abandoned { border-color: rgba(220,38,38,0.15); opacity: 0.65; }
 .fixture-teams { display: flex; align-items: center; gap: 0.75rem; flex: 1; min-width: 200px; }
-.fixture-team-name { font-size: 0.95rem; font-weight: 700; color: var(--text-primary); }
+.fixture-team-name { font-size: 0.95rem; font-weight: 700; color: var(--text-primary); overflow-wrap: break-word; word-break: break-word; }
 .fixture-team-name.winner { color: var(--color-green); }
 .vs-badge {
   font-size: 0.62rem; font-weight: 800; color: var(--text-muted);
@@ -744,6 +749,68 @@ input, select, textarea { font-family: inherit; }
 .error-banner   { background: var(--color-red-faint); border: 1px solid rgba(220,38,38,0.2); border-radius: var(--radius-sm); padding: 0.8rem 1rem; color: var(--color-red); font-size: 0.9rem; margin-bottom: 1.25rem; }
 .success-banner { background: rgba(22,163,74,0.08); border: 1px solid rgba(22,163,74,0.25); border-radius: var(--radius-sm); padding: 0.8rem 1rem; color: var(--color-green); font-size: 0.9rem; margin-bottom: 1.25rem; font-weight: 700; }
 
+/* ─── Highlights (stat cards) ─────────────────────────────────────────── */
+.stat-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.1rem;
+}
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.4rem 1.25rem;
+  box-shadow: var(--shadow-xs);
+  transition: transform var(--transition), box-shadow var(--transition);
+  animation: cardEntrance 0.4s ease both;
+}
+.stat-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); }
+.stat-card-icon  { font-size: 2rem; margin-bottom: 0.5rem; }
+.stat-card-label { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 0.6rem; }
+.stat-card-value { font-size: 1.05rem; font-weight: 800; color: var(--text-primary); line-height: 1.3; word-break: break-word; }
+.stat-card-sub   { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.35rem; }
+.stat-card-empty { font-size: 0.85rem; color: var(--text-muted); font-style: italic; }
+.stat-card-streaks { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.25rem; }
+.stat-card-streak-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.stat-card-streak-name  { font-size: 0.88rem; font-weight: 700; color: var(--text-primary); }
+.stat-card-streak-count { font-size: 0.78rem; font-weight: 700; color: var(--color-green); background: var(--color-green-faint); border: 1px solid rgba(22,163,74,0.2); border-radius: 100px; padding: 0.1rem 0.6rem; white-space: nowrap; }
+
+/* ─── Hall of Fame ────────────────────────────────────────────────────── */
+.hof-hero {
+  display: flex; align-items: center; gap: 1.25rem;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 50%, #fffbeb 100%);
+  border: 1px solid rgba(217,119,6,0.2);
+  border-radius: var(--radius-xl); padding: 2rem 2.5rem;
+  margin-bottom: 2rem; overflow: hidden;
+  box-shadow: 0 4px 24px rgba(217,119,6,0.1);
+  animation: scaleIn 0.4s ease both;
+}
+.hof-hero-icon  { font-size: 3.5rem; animation: float 3s ease-in-out infinite; filter: drop-shadow(0 4px 10px rgba(217,119,6,0.3)); flex-shrink: 0; }
+.hof-hero-title { font-size: 1.9rem; font-weight: 900; color: var(--text-primary); letter-spacing: -0.03em; }
+.hof-hero-sub   { font-size: 0.95rem; color: var(--text-secondary); margin-top: 0.25rem; }
+
+.hof-podium {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;
+  margin-bottom: 2rem;
+}
+.hof-podium-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 1.4rem 1rem;
+  text-align: center; box-shadow: var(--shadow-xs);
+  transition: transform var(--transition), box-shadow var(--transition);
+  animation: scaleIn 0.4s ease both;
+}
+.hof-podium-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); }
+.hof-podium-card.rank-1 { border-color: rgba(217,119,6,0.35); background: linear-gradient(160deg, #ffffff, #fffbeb); box-shadow: 0 4px 20px rgba(217,119,6,0.1); }
+.hof-podium-card.rank-2 { border-color: rgba(148,163,184,0.4); }
+.hof-podium-card.rank-3 { border-color: rgba(180,120,60,0.3); }
+.hof-podium-medal  { font-size: 2rem; display: block; margin-bottom: 0.5rem; animation: rankPop 0.6s ease both; }
+.hof-podium-name   { font-size: 1rem; font-weight: 800; color: var(--text-primary); margin-bottom: 0.3rem; word-break: break-word; }
+.hof-podium-titles { font-size: 0.85rem; font-weight: 700; color: var(--color-gold); }
+.hof-podium-stats  { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.3rem; }
+
+.hof-row-gold { background: rgba(217,119,6,0.04); border-left: 3px solid var(--color-gold); }
+
 /* ─── Helpers ─────────────────────────────────────────────────────────── */
 .divider { height: 1px; background: var(--border); margin: 1.5rem 0; }
 .text-muted { color: var(--text-muted); }
@@ -758,23 +825,80 @@ input, select, textarea { font-family: inherit; }
 }
 
 /* ─── Responsive ──────────────────────────────────────────────────────── */
+
+/* Tablet / large phone (≤ 768px) */
 @media (max-width: 768px) {
-  .form-grid { grid-template-columns: 1fr; }
-  .match-entry-layout { grid-template-columns: 1fr; }
+  .form-grid             { grid-template-columns: 1fr; }
+  .match-entry-layout    { grid-template-columns: 1fr; }
+  .qualifiers-section    { grid-template-columns: repeat(2, 1fr); }
+  .stat-cards-grid       { grid-template-columns: 1fr; }
+  .hof-podium            { grid-template-columns: 1fr; }
+  .bracket-inner         { min-width: 380px; }
+
   .tournament-hero-title { font-size: 1.55rem; }
   .tournament-hero-stats { flex-wrap: wrap; }
-  .hero-stat { padding: 0.75rem 1rem; min-width: 70px; }
-  .hero-stat-value { font-size: 1.3rem; }
-  .fixture-card { flex-direction: column; align-items: flex-start; }
-  .fixture-result { text-align: left; min-width: unset; }
-  .home-hero { padding: 2rem 1.5rem; }
-  .home-hero-text h1 { font-size: 1.8rem; }
-  .home-hero-ball { display: none; }
-  .qualifiers-section { grid-template-columns: 1fr; }
-  .final-title { font-size: 1.8rem; }
-  .bracket-inner { min-width: 400px; }
+  .hero-stat             { padding: 0.75rem 1rem; min-width: 70px; }
+  .hero-stat-value       { font-size: 1.3rem; }
+
+  .fixture-card          { flex-direction: column; align-items: flex-start; }
+  .fixture-result        { text-align: left; min-width: unset; }
+
+  .home-hero             { padding: 2rem 1.5rem; }
+  .home-hero-text h1     { font-size: 1.8rem; }
+  .home-hero-ball        { display: none; }
+
+  .final-title           { font-size: 1.8rem; }
+  .final-team-name       { font-size: 1.1rem; padding: 0.65rem 1.1rem; }
+
+  .tab-btn               { padding: 0.65rem 1rem; font-size: 0.85rem; }
 }
+
+/* Phone (≤ 480px) */
 @media (max-width: 480px) {
-  .container { padding: 0 1rem; }
-  .page-title { font-size: 1.45rem; }
+  .container             { padding: 0 1rem; }
+  .page-title            { font-size: 1.45rem; }
+  .qualifiers-section    { grid-template-columns: 1fr; }
+  .bracket-inner         { min-width: 300px; }
+
+  .home-hero             { padding: 1.5rem 1rem; }
+  .home-hero-text h1     { font-size: 1.5rem; }
+
+  .tournament-hero       { padding: 1.75rem 1.25rem; }
+  .tournament-hero-title { font-size: 1.3rem; }
+  .hero-stat             { padding: 0.6rem 0.75rem; min-width: 60px; }
+  .hero-stat-value       { font-size: 1.15rem; }
+  .hero-stat-label       { font-size: 0.62rem; }
+
+  /* Larger touch targets for small buttons */
+  .btn-sm                { padding: 0.5rem 0.9rem; min-height: 40px; font-size: 0.82rem; }
+
+  .fixture-actions       { flex-wrap: wrap; }
+  .fixture-team-name     { font-size: 0.88rem; }
+
+  .final-title           { font-size: 1.4rem; }
+  .final-teams-display   { gap: 0.75rem; }
+  .final-team-name       { font-size: 1rem; padding: 0.55rem 0.9rem; }
+
+  .cert-inner            { padding: 1.5rem 1.25rem; }
+  .cert-team             { font-size: 1.4rem; }
+  .cert-tournament       { font-size: 0.95rem; }
+
+  .tab-btn               { padding: 0.6rem 0.85rem; font-size: 0.82rem; }
+  .round-label           { font-size: 0.65rem; }
+}
+
+/* Very small phone (≤ 360px) */
+@media (max-width: 360px) {
+  .container             { padding: 0 0.75rem; }
+  .btn-lg                { padding: 0.75rem 1.5rem; font-size: 0.95rem; }
+  .home-hero             { padding: 1.25rem 0.75rem; }
+  .tournament-hero       { padding: 1.25rem 0.75rem; }
+  .hero-stat             { padding: 0.5rem 0.6rem; min-width: 50px; }
+  .hero-stat-value       { font-size: 1rem; }
+  .page-title            { font-size: 1.25rem; }
+  .tournament-hero-title { font-size: 1.15rem; }
+  .qualifier-card        { padding: 1rem; }
+  .qualifier-medal       { font-size: 1.8rem; }
+  .cert-inner            { padding: 1rem; }
+  .cert-team             { font-size: 1.2rem; }
 }

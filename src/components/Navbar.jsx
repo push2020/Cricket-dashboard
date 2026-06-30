@@ -17,6 +17,9 @@ export default function Navbar() {
           <Link to="/" className={`nav-link${pathname === '/' ? ' active' : ''}`}>
             Tournaments
           </Link>
+          <Link to="/hall-of-fame" className={`nav-link${pathname === '/hall-of-fame' ? ' active' : ''}`}>
+            🏆 Hall of Fame
+          </Link>
           <Link to="/create" className={`nav-link${pathname === '/create' ? ' active' : ''}`}>
             + New
           </Link>
