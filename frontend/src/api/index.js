@@ -73,15 +73,15 @@ export function getTournaments() {
 }
 
 /** Creates a new tournament and returns the created document */
-export function createTournament({ name, description, overs, startDate }) {
+export function createTournament({ name, description, overs }) {
   const tournament = {
     _id: newId(),
     name,
     description: description || '',
     overs: Number(overs),
-    startDate: startDate || null,
     status: 'upcoming',
     fixturesGenerated: false,
+    playoffGenerated: false,
     createdAt: now(),
     updatedAt: now(),
   };
@@ -104,10 +104,12 @@ export function deleteTournament(id) {
   return ok({ message: 'Tournament deleted' });
 }
 
-/** Computes and returns the points table for a tournament */
+/** Computes and returns the points table for a tournament (group stage only) */
 export function getStandings(id) {
   const teams = getAll(KEYS.teams).filter((t) => t.tournamentId === id);
-  const fixtures = getAll(KEYS.fixtures).filter((f) => f.tournamentId === id);
+  const fixtures = getAll(KEYS.fixtures).filter(
+    (f) => f.tournamentId === id && (f.type ?? 'group') === 'group'
+  );
   return ok(computeStandings(teams, fixtures));
 }
 
@@ -173,6 +175,7 @@ export function generateFixtures(tournamentId) {
       homeTeam,
       awayTeam,
       round,
+      type: 'group',
       status: 'scheduled',
       homeInnings: { runs: 0, wickets: 0, overs: 0 },
       awayInnings: { runs: 0, wickets: 0, overs: 0 },
@@ -195,6 +198,79 @@ export function generateFixtures(tournamentId) {
   return ok({ message: 'Fixtures generated', count: pairs.length });
 }
 
+/**
+ * Generates playoff fixtures (Eliminator + Final) from the group stage standings.
+ * Top 3 teams qualify: 1st goes directly to the Final; 2nd vs 3rd play the Eliminator.
+ * The winner of the Eliminator is set as the Final's awayTeam automatically when
+ * the Eliminator result is entered.
+ * Requires all group stage fixtures to be completed or abandoned first.
+ */
+export function generatePlayoffs(tournamentId) {
+  const tournament = findById(KEYS.tournaments, tournamentId);
+  if (!tournament) return fail('Tournament not found');
+  if (tournament.playoffGenerated) return fail('Playoffs already generated');
+
+  const teams = getAll(KEYS.teams).filter((t) => t.tournamentId === tournamentId);
+  if (teams.length < 3) return fail('Need at least 3 teams to generate playoffs');
+
+  const groupFixtures = getAll(KEYS.fixtures).filter(
+    (f) => f.tournamentId === tournamentId && (f.type ?? 'group') === 'group'
+  );
+  const allGroupDone = groupFixtures.every(
+    (f) => f.status === 'completed' || f.status === 'abandoned'
+  );
+  if (!allGroupDone) return fail('All group stage matches must be completed first');
+
+  const standings = computeStandings(teams, groupFixtures);
+  const [first, second, third] = standings;
+
+  const maxRound = groupFixtures.reduce((max, f) => Math.max(max, f.round), 0);
+
+  // Eliminator: 2nd place vs 3rd place
+  insert(KEYS.fixtures, {
+    _id: newId(),
+    tournamentId,
+    homeTeam: second.team._id,
+    awayTeam: third.team._id,
+    round: maxRound + 1,
+    type: 'eliminator',
+    status: 'scheduled',
+    homeInnings: { runs: 0, wickets: 0, overs: 0 },
+    awayInnings: { runs: 0, wickets: 0, overs: 0 },
+    winner: null,
+    resultNote: '',
+    tossWinner: null,
+    tossDecision: null,
+    matchDate: null,
+    createdAt: now(),
+    updatedAt: now(),
+  });
+
+  // Final: 1st place vs winner of Eliminator (awayTeam filled in when Eliminator completes)
+  insert(KEYS.fixtures, {
+    _id: newId(),
+    tournamentId,
+    homeTeam: first.team._id,
+    awayTeam: null,
+    round: maxRound + 2,
+    type: 'final',
+    status: 'scheduled',
+    homeInnings: { runs: 0, wickets: 0, overs: 0 },
+    awayInnings: { runs: 0, wickets: 0, overs: 0 },
+    winner: null,
+    resultNote: '',
+    tossWinner: null,
+    tossDecision: null,
+    matchDate: null,
+    createdAt: now(),
+    updatedAt: now(),
+  });
+
+  update(KEYS.tournaments, tournamentId, { playoffGenerated: true, updatedAt: now() });
+
+  return ok({ message: 'Playoffs generated' });
+}
+
 /** Returns a single fixture with all references fully populated (including tournamentId) */
 export function getFixture(id) {
   const fixture = findById(KEYS.fixtures, id);
@@ -203,12 +279,20 @@ export function getFixture(id) {
 }
 
 /**
- * Saves a match result for a fixture. Automatically marks the tournament
- * as completed when no scheduled fixtures remain.
+ * Saves a match result for a fixture. Handles playoff progression:
+ * - Completing the Eliminator automatically sets the Final's awayTeam to the winner.
+ * - Completing the Final marks the tournament as completed.
+ * - For group stage fixtures without playoffs, completes the tournament when all matches are done.
  */
 export function enterResult(id, { homeInnings, awayInnings, winner, resultNote, tossWinner, tossDecision, matchDate, status }) {
   const fixture = findById(KEYS.fixtures, id);
   if (!fixture) return fail('Fixture not found');
+
+  const fixtureType = fixture.type ?? 'group';
+
+  if (fixtureType === 'final' && !fixture.awayTeam) {
+    return fail('Cannot enter Final result until the Eliminator is played');
+  }
 
   const updated = update(KEYS.fixtures, id, {
     homeInnings,
@@ -222,13 +306,30 @@ export function enterResult(id, { homeInnings, awayInnings, winner, resultNote, 
     updatedAt: now(),
   });
 
-  // Auto-complete tournament when every fixture is done
-  const pendingCount = getAll(KEYS.fixtures).filter(
-    (f) => f.tournamentId === fixture.tournamentId && f.status === 'scheduled'
-  ).length;
+  const savedStatus = status || 'completed';
 
-  if (pendingCount === 0) {
+  if (fixtureType === 'eliminator' && savedStatus === 'completed' && winner) {
+    // Propagate eliminator winner into the Final as awayTeam
+    const finalFixture = getAll(KEYS.fixtures).find(
+      (f) => f.tournamentId === fixture.tournamentId && f.type === 'final'
+    );
+    if (finalFixture) {
+      update(KEYS.fixtures, finalFixture._id, { awayTeam: winner, updatedAt: now() });
+    }
+  } else if (fixtureType === 'final') {
+    // Final completed → tournament over
     update(KEYS.tournaments, fixture.tournamentId, { status: 'completed', updatedAt: now() });
+  } else {
+    // Group stage: auto-complete only when no playoffs are in use
+    const tournament = findById(KEYS.tournaments, fixture.tournamentId);
+    if (!tournament?.playoffGenerated) {
+      const pendingCount = getAll(KEYS.fixtures).filter(
+        (f) => f.tournamentId === fixture.tournamentId && f.status === 'scheduled'
+      ).length;
+      if (pendingCount === 0) {
+        update(KEYS.tournaments, fixture.tournamentId, { status: 'completed', updatedAt: now() });
+      }
+    }
   }
 
   return ok(populateFixtureFull(updated, getAll(KEYS.teams), getAll(KEYS.tournaments)));
