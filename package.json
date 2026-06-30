@@ -1,0 +1,11 @@
+{
+  "name": "real-cricket",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c green,cyan \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "install:all": "npm install --prefix backend && npm install --prefix frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3"
+  }
+}
