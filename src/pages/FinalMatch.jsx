@@ -268,7 +268,6 @@ export default function FinalMatch() {
             type="submit"
             className="btn btn-gold btn-lg"
             disabled={submitting}
-            style={{ fontSize: '1.05rem', padding: '0.9rem 2.5rem' }}
           >
             {submitting ? 'Saving…' : status === 'completed' && winnerId ? '🏆 Declare Champion' : 'Save Result'}
           </button>

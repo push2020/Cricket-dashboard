@@ -77,7 +77,7 @@ export default function HallOfFame() {
 
           {/* Full table */}
           <div className="standings-table-wrap" style={{ marginTop: '2rem' }}>
-            <table className="standings-table">
+            <table className="standings-table hof-table">
               <thead>
                 <tr>
                   <th>#</th>

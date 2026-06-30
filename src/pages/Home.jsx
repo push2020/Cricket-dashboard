@@ -69,7 +69,7 @@ export default function Home() {
           <div className="home-hero-text">
             <h1>Real Cricket</h1>
             <p>Manage tournaments, track scores, and settle the rivalry.</p>
-            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', flexWrap: 'wrap', width: '100%' }}>
               <button className="btn btn-primary btn-lg" onClick={() => navigate('/create')}>
                 + New Tournament
               </button>
