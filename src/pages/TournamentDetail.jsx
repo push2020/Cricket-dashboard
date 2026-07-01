@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import TeamAvatar from '../components/TeamAvatar';
 import {
   getTournament,
   getTeams,
   getFixtures,
   getStandings,
+  getPoolStandings,
   getTournamentStats,
   createTeam,
   deleteTeam,
@@ -57,50 +59,14 @@ function computeQualifiedIds(standings, scheduledGroupFixtures, qualifyCount) {
   return qualifiedIds;
 }
 
-/** Pool of emoji avatars — each team always gets the same one based on its name */
-const TEAM_EMOJIS = [
-  '🦁', '🐯', '🦊', '🦅', '🐉', '🦈', '⚡', '🔥',
-  '🌟', '🦋', '🌊', '🎯', '💎', '🌪️', '🐺', '🐆',
-  '🦏', '🦬', '🦩', '🦚', '🐊', '🦁', '🌈', '🎪',
-];
-
-/**
- * Derives a stable hash from a team name (used for colour and emoji selection).
- *
- * @param {string} name
- * @returns {number} non-negative integer
- */
-function nameHash(name) {
+/** Derives a stable hue (0–359) from a team name — used for bracket colour dots */
+function nameToHue(name) {
   let h = 0;
   for (let i = 0; i < name.length; i++) {
     h = ((h << 5) - h) + name.charCodeAt(i);
     h |= 0;
   }
-  return Math.abs(h);
-}
-
-/** Returns a hue (0–359) stable per team name, used for gradient colour */
-function nameToHue(name) { return nameHash(name) % 360; }
-
-/** Returns the emoji avatar for a team name — deterministic, no letters */
-function teamEmoji(name) {
-  return TEAM_EMOJIS[nameHash(name) % TEAM_EMOJIS.length];
-}
-
-/**
- * Returns an inline style object that gives each team a unique gradient
- * avatar background derived from its name.
- *
- * @param {string} name
- * @returns {React.CSSProperties}
- */
-function teamAvatarStyle(name) {
-  const h = nameToHue(name);
-  return {
-    background: `linear-gradient(135deg, hsl(${h},72%,58%), hsl(${(h + 35) % 360},65%,44%))`,
-    border: 'none',
-    boxShadow: `0 2px 8px hsla(${h},60%,45%,0.35)`,
-  };
+  return Math.abs(h) % 360;
 }
 
 /** Formats an NRR number with a leading + or – sign */
@@ -132,57 +98,100 @@ function tbdLabel(type) {
   return 'Awaiting previous results';
 }
 
+/** Round group header showing round number, match count, and completion progress */
+function RoundHeader({ round, total, done }) {
+  const allDone = done === total && total > 0;
+  return (
+    <div className="round-header">
+      <span className="round-label">Round {round}</span>
+      <span className="round-progress">
+        <span className={`round-progress-bar${allDone ? ' complete' : ''}`} style={{ width: `${total > 0 ? (done / total) * 100 : 0}%` }} />
+      </span>
+      <span className="round-count">{done}/{total}</span>
+    </div>
+  );
+}
+
 /**
- * Single fixture card — handles null homeTeam/awayTeam for playoff matches
- * whose participants aren't yet known.
- * Final fixtures navigate to /final/:id; others go to /match/:id.
+ * Fixture card — horizontal scorecard layout.
+ * Home team left · score/VS centre · away team right · action far right.
+ * Result note appears as a footer strip only when the match is done.
  */
-function FixtureCard({ f, isPlayoff }) {
+function FixtureCard({ f, isPlayoff, animIdx = 0 }) {
   const navigate = useNavigate();
-  const homeTeamName = f.homeTeam?.name ?? 'TBD';
-  const awayTeamName = f.awayTeam?.name ?? 'TBD';
-  const isTbd    = !f.homeTeam || !f.awayTeam;
+  const isTbd   = !f.homeTeam || !f.awayTeam;
+  const isDone  = f.status === 'completed';
+  const isAband = f.status === 'abandoned';
+
+  const homeWon = isDone && !!f.winner && f.winner?._id === f.homeTeam?._id;
+  const awayWon = isDone && !isTbd && !!f.winner && f.winner?._id === f.awayTeam?._id;
+
   const matchPath = f.type === 'final' ? `/final/${f._id}` : `/match/${f._id}`;
+  const homeName  = f.homeTeam?.name ?? 'TBD';
+  const awayName  = f.awayTeam?.name ?? 'TBD';
 
   return (
-    <div className={`fixture-card ${f.status}${isPlayoff ? ' playoff' : ''}`}>
-      <div className="fixture-teams">
-        <span className={`fixture-team-name${f.winner?._id === f.homeTeam?._id ? ' winner' : ''}`}>
-          {homeTeamName}
-        </span>
-        <span className="vs-badge">vs</span>
-        <span className={`fixture-team-name${!isTbd && f.winner?._id === f.awayTeam?._id ? ' winner' : ''}`}>
-          {awayTeamName}
-        </span>
-      </div>
-
-      {f.status === 'completed' && (
-        <div className="fixture-result">
-          <div className="fixture-score">
-            <span>{scoreStr(f.homeInnings)}</span>
-            <span className="fixture-score-sep">|</span>
-            <span>{scoreStr(f.awayInnings)}</span>
+    <div
+      className={`fc${isDone ? ' fc-done' : ''}${isAband ? ' fc-abandoned' : ''}${isPlayoff ? ' fc-playoff' : ''}`}
+      style={{ animationDelay: `${animIdx * 0.07}s` }}
+    >
+      <div className="fc-row">
+        {/* ── Teams area: 3-col grid gives each team exactly 50% ── */}
+        <div className="fc-teams">
+          {/* Home: avatar → W → name  (mirrors away: name → W → avatar) */}
+          <div className={`fc-side fc-home${homeWon ? ' fc-won' : ''}`}>
+            <TeamAvatar name={f.homeTeam ? homeName : 'TBD'} size={36} />
+            {homeWon && <span className="fc-w-pill">W</span>}
+            <span className="fc-name">{homeName}</span>
           </div>
-          {f.resultNote && <div className="fixture-result-note">{f.resultNote}</div>}
-        </div>
-      )}
 
-      <div className="fixture-actions">
-        <span className={`badge badge-${f.status}`}>{f.status}</span>
-        {f.status === 'scheduled' && !isTbd && (
-          <button className="btn btn-primary btn-sm" onClick={() => navigate(matchPath)}>
-            Enter Result
-          </button>
-        )}
-        {f.status === 'scheduled' && isTbd && (
-          <span className="tbd-label">{tbdLabel(f.type)}</span>
-        )}
-        {f.status === 'completed' && (
-          <button className="btn btn-ghost btn-sm" onClick={() => navigate(matchPath)}>
-            Edit
-          </button>
-        )}
+          {/* Centre: VS pill or scores */}
+          <div className="fc-centre">
+            {isDone ? (
+              <div className="fc-score-block">
+                <span className={`fc-sc${homeWon ? ' fc-sc-win' : ''}`}>
+                  {f.homeInnings?.runs}<sup className="fc-wk">/{f.homeInnings?.wickets}</sup>
+                </span>
+                <span className="fc-dash">–</span>
+                <span className={`fc-sc${awayWon ? ' fc-sc-win' : ''}`}>
+                  {f.awayInnings?.runs}<sup className="fc-wk">/{f.awayInnings?.wickets}</sup>
+                </span>
+              </div>
+            ) : (
+              <span className="fc-vs-pill">VS</span>
+            )}
+          </div>
+
+          {/* Away: avatar far-right via row-reverse */}
+          <div className={`fc-side fc-away${awayWon ? ' fc-won' : ''}`}>
+            <TeamAvatar name={f.awayTeam ? awayName : 'TBD'} size={36} />
+            {awayWon && <span className="fc-w-pill">W</span>}
+            <span className="fc-name">{awayName}</span>
+          </div>
+        </div>
+
+        {/* ── Action — always at right edge, outside team grid ── */}
+        <div className="fc-action">
+          {f.status === 'scheduled' && !isTbd && (
+            <button className="btn btn-primary btn-sm fc-cta" onClick={() => navigate(matchPath)}>
+              Enter Result
+            </button>
+          )}
+          {isDone && (
+            <button className="btn btn-ghost btn-sm" onClick={() => navigate(matchPath)}>Edit</button>
+          )}
+          {f.status === 'scheduled' && isTbd && (
+            <span className="tbd-label">{tbdLabel(f.type)}</span>
+          )}
+        </div>
       </div>
+
+      {/* Result / abandon strip */}
+      {(isDone && f.resultNote) || isAband ? (
+        <div className="fc-result-strip">
+          {isAband ? 'Match abandoned' : f.resultNote}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -203,14 +212,7 @@ function BracketMatchCard({ title, team1, team2, winnerId, isDone, isFinal, plac
 
   function teamDot(name) {
     if (!name) return null;
-    const h = nameToHue(name);
-    return (
-      <span style={{
-        width: 9, height: 9, borderRadius: '50%', flexShrink: 0, display: 'inline-block',
-        background: `hsl(${h},62%,55%)`,
-        boxShadow: `0 0 5px hsla(${h},58%,45%,0.45)`,
-      }} />
-    );
+    return <TeamAvatar name={name} size={22} style={{ flexShrink: 0 }} />;
   }
 
   return (
@@ -418,9 +420,7 @@ function TeamsTab({ tournament, teams, onTeamAdded, onTeamDeleted }) {
         </div>
       ) : (
         <div className="teams-list">
-          {teams.map((team, idx) => {
-            const avatarStyle = teamAvatarStyle(team.name);
-            return (
+          {teams.map((team, idx) => (
               <div
                 key={team._id}
                 className={`team-row${locked ? ' team-row-locked' : ''}`}
@@ -429,10 +429,8 @@ function TeamsTab({ tournament, teams, onTeamAdded, onTeamDeleted }) {
                 {/* Number badge */}
                 <span className="team-seq">#{idx + 1}</span>
 
-                {/* Avatar */}
-                <div className="team-avatar" style={avatarStyle}>
-                  {teamEmoji(team.name)}
-                </div>
+                {/* Human avatar */}
+                <TeamAvatar name={team.name} size={40} />
 
                 {/* Name */}
                 <span className="team-name-text">{team.name}</span>
@@ -451,8 +449,7 @@ function TeamsTab({ tournament, teams, onTeamAdded, onTeamDeleted }) {
                   <span className="team-lock-icon" title="Locked">🔒</span>
                 )}
               </div>
-            );
-          })}
+          ))}
         </div>
       )}
 
@@ -486,16 +483,17 @@ function TeamsTab({ tournament, teams, onTeamAdded, onTeamDeleted }) {
 /** Renders the Group Stage Fixtures tab */
 function FixturesTab({ tournament, fixtures, teams, onFixturesGenerated }) {
   const [generating, setGenerating] = useState(false);
-  const [error, setError] = useState('');
+  const [error,      setError]      = useState('');
 
   const groupFixtures = fixtures.filter((f) => (f.type ?? 'group') === 'group');
+  const isPool        = tournament.format === 'pool';
+  const canPool       = teams.length >= 6;
 
-  /** Generates round-robin fixtures */
-  async function handleGenerate() {
+  async function handleGenerate(format = 'standard') {
     setError('');
     try {
       setGenerating(true);
-      await generateFixtures(tournament._id);
+      await generateFixtures(tournament._id, format);
       await onFixturesGenerated();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to generate fixtures.');
@@ -504,26 +502,86 @@ function FixturesTab({ tournament, fixtures, teams, onFixturesGenerated }) {
     }
   }
 
-  const rounds = groupByRound(groupFixtures);
+  /* ── Pool format: render Pool A then Pool B sections ── */
+  if (isPool && groupFixtures.length > 0) {
+    const poolA = groupFixtures.filter((f) => f.pool === 'A');
+    const poolB = groupFixtures.filter((f) => f.pool === 'B');
+    return (
+      <div>
+        {[{ label: 'Pool A', fixtures: poolA, cls: 'pool-a-header' }, { label: 'Pool B', fixtures: poolB, cls: 'pool-b-header' }].map(({ label, fixtures: pf, cls }) => (
+          <div key={label} className="pool-section">
+            <div className={`pool-section-header ${cls}`} style={{ marginBottom: '1rem' }}>{label}</div>
+            {Object.keys(groupByRound(pf)).map(Number).sort((a, b) => a - b).map((round) => {
+              const rFixtures = groupByRound(pf)[round];
+              const done = rFixtures.filter(f => f.status === 'completed').length;
+              return (
+                <div key={round} className="round-group">
+                  <RoundHeader round={round} total={rFixtures.length} done={done} />
+                  <div className="fixtures-list">
+                    {rFixtures.map((f, i) => <FixtureCard key={f._id} f={f} isPlayoff={false} animIdx={i} />)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    );
+  }
 
+  /* ── Standard: generate choice or round display ── */
+  const rounds = groupByRound(groupFixtures);
   return (
     <div>
       {!tournament.fixturesGenerated && (
         <div style={{ marginBottom: '1.5rem' }}>
           {error && <div className="error-banner">{error}</div>}
-          <div className="card" style={{ background: 'var(--bg-secondary)', borderStyle: 'dashed' }}>
-            <div className="card-body" style={{ textAlign: 'center', padding: '2.5rem' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📋</div>
-              <p style={{ color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
-                {teams.length < 2
-                  ? `Add at least 2 teams to generate fixtures (${teams.length} added)`
-                  : `Ready to generate ${(teams.length * (teams.length - 1)) / 2} matches across ${teams.length} teams`}
-              </p>
-              <button className="btn btn-primary btn-lg" onClick={handleGenerate} disabled={generating || teams.length < 2}>
-                {generating ? 'Generating…' : 'Generate Round-Robin Fixtures'}
-              </button>
+          {canPool ? (
+            /* ≥ 6 teams: offer format choice */
+            <div className="format-choice-wrap">
+              <p className="format-choice-title">Choose fixture format for {teams.length} teams</p>
+              <div className="format-choice-cards">
+                <div className="format-choice-card">
+                  <div className="format-choice-icon">🔄</div>
+                  <div className="format-choice-name">Round Robin</div>
+                  <div className="format-choice-desc">
+                    Every team plays {teams.length - 1} matches.
+                    Total: {(teams.length * (teams.length - 1)) / 2} matches.
+                  </div>
+                  <button className="btn btn-primary" onClick={() => handleGenerate('standard')} disabled={generating}>
+                    {generating ? 'Generating…' : 'Use Round Robin'}
+                  </button>
+                </div>
+                <div className="format-choice-card format-choice-card-pool">
+                  <div className="format-choice-icon">🏆</div>
+                  <div className="format-choice-name">Pool Format</div>
+                  <div className="format-choice-desc">
+                    2 pools of {Math.ceil(teams.length / 2)}/{Math.floor(teams.length / 2)}.
+                    Double round-robin within pool.
+                    Top 2 per pool qualify (IPL playoffs).
+                  </div>
+                  <button className="btn btn-gold" onClick={() => handleGenerate('pool')} disabled={generating}>
+                    {generating ? 'Generating…' : 'Use Pool Format'}
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            /* < 6 teams: standard only */
+            <div className="card" style={{ background: 'var(--bg-secondary)', borderStyle: 'dashed' }}>
+              <div className="card-body" style={{ textAlign: 'center', padding: '2.5rem' }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📋</div>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
+                  {teams.length < 2
+                    ? `Add at least 2 teams to generate fixtures (${teams.length} added)`
+                    : `Ready to generate ${(teams.length * (teams.length - 1)) / 2} matches across ${teams.length} teams`}
+                </p>
+                <button className="btn btn-primary btn-lg" onClick={() => handleGenerate('standard')} disabled={generating || teams.length < 2}>
+                  {generating ? 'Generating…' : 'Generate Round-Robin Fixtures'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -534,14 +592,18 @@ function FixturesTab({ tournament, fixtures, teams, onFixturesGenerated }) {
         </div>
       )}
 
-      {Object.keys(rounds).map(Number).sort((a, b) => a - b).map((round) => (
-        <div key={round} className="round-group">
-          <div className="round-label">Round {round}</div>
-          <div className="fixtures-list">
-            {rounds[round].map((f) => <FixtureCard key={f._id} f={f} isPlayoff={false} />)}
+      {Object.keys(rounds).map(Number).sort((a, b) => a - b).map((round) => {
+        const rFixtures = rounds[round];
+        const done = rFixtures.filter(f => f.status === 'completed').length;
+        return (
+          <div key={round} className="round-group">
+            <RoundHeader round={round} total={rFixtures.length} done={done} />
+            <div className="fixtures-list">
+              {rFixtures.map((f, i) => <FixtureCard key={f._id} f={f} isPlayoff={false} animIdx={i} />)}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -550,7 +612,7 @@ function FixturesTab({ tournament, fixtures, teams, onFixturesGenerated }) {
  * Playoffs tab — shown only when playoffGenerated is true.
  * Shows qualifier cards, bracket, then actual match entries.
  */
-function PlayoffsTab({ tournament, fixtures, standings, teamsCount, onPlayoffsGenerated }) {
+function PlayoffsTab({ tournament, fixtures, standings, poolStandings, teamsCount, onPlayoffsGenerated }) {
   const [generatingPlayoffs, setGeneratingPlayoffs] = useState(false);
   const [error, setError] = useState('');
 
@@ -560,24 +622,15 @@ function PlayoffsTab({ tournament, fixtures, standings, teamsCount, onPlayoffsGe
   const qualifier2Fixture  = fixtures.find((f) => f.type === 'qualifier2')  ?? null;
   const finalFixture       = fixtures.find((f) => f.type === 'final')       ?? null;
 
-  const isIpl      = teamsCount >= 4;
-  const isDirect   = teamsCount === 3;
-  // How many teams qualify: 4 for IPL, 2 for direct final, 0 otherwise
-  const qualifyCount = isIpl ? 4 : isDirect ? 2 : 0;
-
-  const rankLabels = isIpl
-    ? ['1st — Qualifier 1', '2nd — Qualifier 1', '3rd — Eliminator', '4th — Eliminator']
-    : ['1st — Direct Final', '2nd — Direct Final'];
-
-  const rankLabelsFinal = isIpl
-    ? ['1st Place', '2nd Place', '3rd Place', '4th Place']
-    : ['1st Place', '2nd Place'];
+  const isPool     = tournament.format === 'pool';
+  const isIpl      = !isPool && teamsCount >= 4;
+  const isDirect   = !isPool && teamsCount === 3;
+  const qualifyCount = isPool ? 4 : isIpl ? 4 : isDirect ? 2 : 0;
 
   const allGroupDone = groupFixtures.length > 0 && groupFixtures.every(
     (f) => f.status === 'completed' || f.status === 'abandoned'
   );
 
-  /** Generates playoff fixtures */
   async function handleGeneratePlayoffs() {
     setError('');
     try {
@@ -589,6 +642,46 @@ function PlayoffsTab({ tournament, fixtures, standings, teamsCount, onPlayoffsGe
     } finally {
       setGeneratingPlayoffs(false);
     }
+  }
+
+  /** Renders qualifier cards for pool format (Pool A top 2 + Pool B top 2) */
+  function PoolQualifierCards({ label }) {
+    if (!poolStandings) return null;
+    const poolATop2 = (poolStandings.poolA ?? []).slice(0, 2);
+    const poolBTop2 = (poolStandings.poolB ?? []).slice(0, 2);
+    return (
+      <div style={{ marginBottom: '2rem' }}>
+        <div className="playoff-section-label" style={{ marginBottom: '1.25rem' }}>🏆 {label}</div>
+        <div className="pool-qualifiers-grid">
+          <div>
+            <div className="pool-section-header pool-a-header" style={{ marginBottom: '0.75rem' }}>Pool A — Top 2</div>
+            <div className="qualifiers-section" style={{ gridTemplateColumns: 'repeat(2,1fr)' }}>
+              {poolATop2.map((row, idx) => (
+                <div key={row.team._id} className={`qualifier-card ${RANK_CLASS[idx]}`}>
+                  <span className="qualifier-medal">{RANK_MEDAL[idx]}</span>
+                  <div className="qualifier-rank">A{idx + 1}</div>
+                  <div className="qualifier-name">{row.team.name}</div>
+                  <div className="qualifier-stats">{row.points} pts · NRR {formatNrr(row.nrr)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="pool-section-header pool-b-header" style={{ marginBottom: '0.75rem' }}>Pool B — Top 2</div>
+            <div className="qualifiers-section" style={{ gridTemplateColumns: 'repeat(2,1fr)' }}>
+              {poolBTop2.map((row, idx) => (
+                <div key={row.team._id} className={`qualifier-card ${RANK_CLASS[idx]}`}>
+                  <span className="qualifier-medal">{RANK_MEDAL[idx]}</span>
+                  <div className="qualifier-rank">B{idx + 1}</div>
+                  <div className="qualifier-name">{row.team.name}</div>
+                  <div className="qualifier-stats">{row.points} pts · NRR {formatNrr(row.nrr)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (!tournament.fixturesGenerated) {
@@ -605,7 +698,6 @@ function PlayoffsTab({ tournament, fixtures, standings, teamsCount, onPlayoffsGe
     return (
       <div>
         {error && <div className="error-banner">{error}</div>}
-
         {!allGroupDone && (
           <div className="empty-state">
             <div className="empty-state-icon">⏳</div>
@@ -613,35 +705,36 @@ function PlayoffsTab({ tournament, fixtures, standings, teamsCount, onPlayoffsGe
             <div className="empty-state-desc">Complete all group stage matches to unlock playoffs.</div>
           </div>
         )}
-
-        {allGroupDone && standings.length >= qualifyCount && (
+        {allGroupDone && (
           <div>
-            {/* Qualifying teams preview */}
-            <div style={{ marginBottom: '2rem' }}>
-              <div className="playoff-section-label" style={{ marginBottom: '1.25rem' }}>🏆 Qualifiers</div>
-              <div className="qualifiers-section">
-                {standings.slice(0, qualifyCount).map((row, idx) => (
-                  <div key={row.team._id} className={`qualifier-card ${RANK_CLASS[idx]}`} style={{ animationDelay: `${idx * 0.12}s` }}>
-                    <span className="qualifier-medal">{RANK_MEDAL[idx]}</span>
-                    <div className="qualifier-rank">{rankLabels[idx]}</div>
-                    <div className="qualifier-name">{row.team.name}</div>
-                    <div className="qualifier-stats">{row.points} pts · NRR {formatNrr(row.nrr)}</div>
+            {isPool ? <PoolQualifierCards label="Qualifiers" /> : (
+              standings.length >= qualifyCount && (
+                <div style={{ marginBottom: '2rem' }}>
+                  <div className="playoff-section-label" style={{ marginBottom: '1.25rem' }}>🏆 Qualifiers</div>
+                  <div className="qualifiers-section">
+                    {standings.slice(0, qualifyCount).map((row, idx) => (
+                      <div key={row.team._id} className={`qualifier-card ${RANK_CLASS[idx]}`} style={{ animationDelay: `${idx * 0.1}s` }}>
+                        <span className="qualifier-medal">{RANK_MEDAL[idx]}</span>
+                        <div className="qualifier-rank">
+                          {isIpl ? ['1st — Q1', '2nd — Q1', '3rd — Elim', '4th — Elim'][idx] : ['1st — Final', '2nd — Final'][idx]}
+                        </div>
+                        <div className="qualifier-name">{row.team.name}</div>
+                        <div className="qualifier-stats">{row.points} pts · NRR {formatNrr(row.nrr)}</div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Generate button */}
+                </div>
+              )
+            )}
             <div className="card" style={{ background: 'var(--bg-secondary)', borderStyle: 'dashed', borderColor: 'rgba(245,158,11,0.4)' }}>
               <div className="card-body" style={{ textAlign: 'center', padding: '2.5rem' }}>
                 <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🏟️</div>
-                <p style={{ color: 'var(--color-gold)', fontWeight: 700, marginBottom: '0.5rem', fontSize: '1.05rem' }}>
-                  Group Stage Complete!
-                </p>
+                <p style={{ color: 'var(--color-gold)', fontWeight: 700, marginBottom: '0.5rem', fontSize: '1.05rem' }}>Group Stage Complete!</p>
                 <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.92rem' }}>
-                  {isDirect
-                    ? 'Top 2 teams qualify — they play directly in the Final.'
-                    : 'Top 4 qualify. 1st vs 2nd in Q1; 3rd vs 4th in the Eliminator. Winners meet in Q2 and the Final.'}
+                  {isPool
+                    ? 'Top 2 from each pool qualify. Q1: A1 vs B1 · Eliminator: A2 vs B2 · Q2 · Final.'
+                    : isDirect ? 'Top 2 qualify — direct Final.'
+                    : 'Top 4 qualify. Q1: 1st vs 2nd · Eliminator: 3rd vs 4th · Q2 · Final.'}
                 </p>
                 <button className="btn btn-gold btn-lg" onClick={handleGeneratePlayoffs} disabled={generatingPlayoffs}>
                   {generatingPlayoffs ? 'Generating…' : '🚀 Generate Playoffs'}
@@ -655,60 +748,66 @@ function PlayoffsTab({ tournament, fixtures, standings, teamsCount, onPlayoffsGe
   }
 
   /* Playoffs are generated — show bracket + matches */
+  /* Playoffs generated — show qualifiers, bracket, and match cards */
   return (
     <div>
       {/* Qualifier cards */}
-      {standings.length >= qualifyCount && (
-        <div style={{ marginBottom: '2rem' }}>
-          <div className="playoff-section-label" style={{ marginBottom: '1.25rem' }}>🏆 Qualifiers</div>
-          <div className="qualifiers-section">
-            {standings.slice(0, qualifyCount).map((row, idx) => (
-              <div key={row.team._id} className={`qualifier-card ${RANK_CLASS[idx]}`} style={{ animationDelay: `${idx * 0.1}s` }}>
-                <span className="qualifier-medal">{RANK_MEDAL[idx]}</span>
-                <div className="qualifier-rank">{rankLabelsFinal[idx]}</div>
-                <div className="qualifier-name">{row.team.name}</div>
-                <div className="qualifier-stats">{row.points} pts · NRR {formatNrr(row.nrr)}</div>
-              </div>
-            ))}
+      {isPool
+        ? <PoolQualifierCards label="Qualified Teams" />
+        : standings.length >= qualifyCount && (
+          <div style={{ marginBottom: '2rem' }}>
+            <div className="playoff-section-label" style={{ marginBottom: '1.25rem' }}>🏆 Qualifiers</div>
+            <div className="qualifiers-section">
+              {standings.slice(0, qualifyCount).map((row, idx) => (
+                <div key={row.team._id} className={`qualifier-card ${RANK_CLASS[idx]}`} style={{ animationDelay: `${idx * 0.1}s` }}>
+                  <span className="qualifier-medal">{RANK_MEDAL[idx]}</span>
+                  <div className="qualifier-rank">
+                    {isIpl ? ['1st', '2nd', '3rd', '4th'][idx] + ' Place' : ['1st', '2nd'][idx] + ' Place'}
+                  </div>
+                  <div className="qualifier-name">{row.team.name}</div>
+                  <div className="qualifier-stats">{row.points} pts · NRR {formatNrr(row.nrr)}</div>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Bracket */}
       {isDirect
         ? <DirectFinalBracket finalFixture={finalFixture} />
         : <IplBracket q1Fixture={qualifier1Fixture} eliminatorFixture={eliminatorFixture} qualifier2Fixture={qualifier2Fixture} finalFixture={finalFixture} />}
 
-      {/* Match cards — IPL format */}
-      {isIpl && (
+      {/* Match cards — IPL / pool format */}
+      {(isIpl || isPool) && (
         <>
-          <div className="round-group" style={{ marginTop: '2rem' }}>
-            <div className="round-label playoff-round-label">Qualifier 1 · 1st vs 2nd</div>
-            <div className="fixtures-list">
-              {qualifier1Fixture && <FixtureCard f={qualifier1Fixture} isPlayoff />}
+          {qualifier1Fixture && (
+            <div className="round-group" style={{ marginTop: '2rem' }}>
+              <div className="round-label playoff-round-label">
+                {isPool ? 'Qualifier 1 · Pool A 1st vs Pool B 1st' : 'Qualifier 1 · 1st vs 2nd'}
+              </div>
+              <div className="fixtures-list"><FixtureCard f={qualifier1Fixture} isPlayoff /></div>
             </div>
-          </div>
-
-          <div className="round-group" style={{ marginTop: '1.5rem' }}>
-            <div className="round-label playoff-round-label">Eliminator · 3rd vs 4th</div>
-            <div className="fixtures-list">
-              {eliminatorFixture && <FixtureCard f={eliminatorFixture} isPlayoff />}
+          )}
+          {eliminatorFixture && (
+            <div className="round-group" style={{ marginTop: '1.5rem' }}>
+              <div className="round-label playoff-round-label">
+                {isPool ? 'Eliminator · Pool A 2nd vs Pool B 2nd' : 'Eliminator · 3rd vs 4th'}
+              </div>
+              <div className="fixtures-list"><FixtureCard f={eliminatorFixture} isPlayoff /></div>
             </div>
-          </div>
-
-          <div className="round-group" style={{ marginTop: '1.5rem' }}>
-            <div className="round-label playoff-round-label">Qualifier 2 · Q1 Loser vs Eliminator Winner</div>
-            <div className="fixtures-list">
-              {qualifier2Fixture && <FixtureCard f={qualifier2Fixture} isPlayoff />}
+          )}
+          {qualifier2Fixture && (
+            <div className="round-group" style={{ marginTop: '1.5rem' }}>
+              <div className="round-label playoff-round-label">Qualifier 2 · Q1 Loser vs Eliminator Winner</div>
+              <div className="fixtures-list"><FixtureCard f={qualifier2Fixture} isPlayoff /></div>
             </div>
-          </div>
-
-          <div className="round-group" style={{ marginTop: '1.5rem' }}>
-            <div className="round-label playoff-round-label">Final · Q1 Winner vs Q2 Winner</div>
-            <div className="fixtures-list">
-              {finalFixture && <FixtureCard f={finalFixture} isPlayoff />}
+          )}
+          {finalFixture && (
+            <div className="round-group" style={{ marginTop: '1.5rem' }}>
+              <div className="round-label playoff-round-label">Final · Q1 Winner vs Q2 Winner</div>
+              <div className="fixtures-list"><FixtureCard f={finalFixture} isPlayoff /></div>
             </div>
-          </div>
+          )}
         </>
       )}
 
@@ -716,17 +815,47 @@ function PlayoffsTab({ tournament, fixtures, standings, teamsCount, onPlayoffsGe
       {isDirect && finalFixture && (
         <div className="round-group" style={{ marginTop: '2rem' }}>
           <div className="round-label playoff-round-label">Final · 1st vs 2nd</div>
-          <div className="fixtures-list">
-            <FixtureCard f={finalFixture} isPlayoff />
-          </div>
+          <div className="fixtures-list"><FixtureCard f={finalFixture} isPlayoff /></div>
         </div>
       )}
     </div>
   );
 }
 
+/** Mini standings table shared by pool A / pool B display */
+function PoolStandingsTable({ rows, qualifyCount }) {
+  return (
+    <div className="standings-table-wrap">
+      <table className="standings-table">
+        <thead>
+          <tr>
+            <th>#</th><th>Team</th><th>P</th><th>W</th><th>L</th>
+            <th className="col-pts">Pts</th><th>NRR</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, idx) => (
+            <tr key={row.team._id} className={idx < qualifyCount ? 'qualifier-row' : ''}>
+              <td className="col-pos">
+                <span className={`position-indicator${idx < qualifyCount ? ' top' : ''}`}>{idx + 1}</span>
+              </td>
+              <td className="col-team">
+                {row.team.name}
+                {idx < qualifyCount && <span className="qualify-badge">Q</span>}
+              </td>
+              <td>{row.played}</td><td>{row.won}</td><td>{row.lost}</td>
+              <td className="col-pts">{row.points}</td>
+              <td className={`col-nrr ${row.nrr >= 0 ? 'positive' : 'negative'}`}>{formatNrr(row.nrr)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 /** Renders the Standings tab with live Q (qualified) badges */
-function StandingsTab({ standings, tournament, fixtures, teamsCount, loading }) {
+function StandingsTab({ standings, tournament, fixtures, teamsCount, poolStandings, loading }) {
   if (loading) {
     return <div className="loading-wrap"><div className="spinner" />Calculating standings…</div>;
   }
@@ -736,6 +865,29 @@ function StandingsTab({ standings, tournament, fixtures, teamsCount, loading }) 
         <div className="empty-state-icon">📊</div>
         <div className="empty-state-title">No standings yet</div>
         <div className="empty-state-desc">Standings appear once matches are played.</div>
+      </div>
+    );
+  }
+
+  const isPool = tournament?.format === 'pool';
+
+  // Pool format: show two separate tables instead of one combined table
+  if (isPool && poolStandings) {
+    return (
+      <div>
+        <p className="qualifier-note" style={{ marginBottom: '1.5rem' }}>
+          Top 2 from each pool qualify for playoffs (IPL format).
+        </p>
+        <div className="pool-standings-grid">
+          <div>
+            <div className="pool-section-header pool-a-header" style={{ marginBottom: '0.75rem' }}>Pool A</div>
+            <PoolStandingsTable rows={poolStandings.poolA ?? []} qualifyCount={2} />
+          </div>
+          <div>
+            <div className="pool-section-header pool-b-header" style={{ marginBottom: '0.75rem' }}>Pool B</div>
+            <PoolStandingsTable rows={poolStandings.poolB ?? []} qualifyCount={2} />
+          </div>
+        </div>
       </div>
     );
   }
@@ -804,7 +956,7 @@ function StandingsTab({ standings, tournament, fixtures, teamsCount, loading }) 
                   </td>
                   <td className="col-team">
                     <div className="standings-team-cell">
-                      <div className="standings-avatar" style={teamAvatarStyle(row.team.name)}>🏏</div>
+                      <TeamAvatar name={row.team.name} size={28} />
                       <div className="standings-team-info">
                         <span className="standings-team-name">{row.team.name}</span>
                         {isQual && <span className="qualify-badge">Q</span>}
@@ -919,16 +1071,17 @@ export default function TournamentDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [tournament, setTournament] = useState(null);
-  const [teams, setTeams] = useState([]);
-  const [fixtures, setFixtures] = useState([]);
-  const [standings, setStandings] = useState([]);
+  const [tournament,       setTournament]       = useState(null);
+  const [teams,            setTeams]            = useState([]);
+  const [fixtures,         setFixtures]         = useState([]);
+  const [standings,        setStandings]        = useState([]);
+  const [poolStandings,    setPoolStandings]    = useState(null);
   const [standingsLoading, setStandingsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('teams');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [activeTab,        setActiveTab]        = useState('teams');
+  const [loading,          setLoading]          = useState(true);
+  const [error,            setError]            = useState('');
 
-  /** Loads tournament, teams, fixtures (and standings if playoffs generated) */
+  /** Loads tournament, teams, fixtures and standings in one shot */
   const loadData = useCallback(async () => {
     try {
       const [tRes, teRes, fRes] = await Promise.all([
@@ -936,13 +1089,19 @@ export default function TournamentDetail() {
         getTeams(id),
         getFixtures(id),
       ]);
-      setTournament(tRes.data);
+      const t = tRes.data;
+      setTournament(t);
       setTeams(teRes.data);
       setFixtures(fRes.data);
 
-      if (tRes.data.playoffGenerated || tRes.data.fixturesGenerated) {
-        const { data: sData } = await getStandings(id);
-        setStandings(sData);
+      if (t.fixturesGenerated) {
+        if (t.format === 'pool') {
+          const { data: ps } = await getPoolStandings(id);
+          setPoolStandings(ps);
+        } else {
+          const { data: sData } = await getStandings(id);
+          setStandings(sData);
+        }
       }
     } catch {
       setError('Failed to load tournament data.');
@@ -951,12 +1110,17 @@ export default function TournamentDetail() {
     }
   }, [id]);
 
-  /** Loads standings for the standings tab */
+  /** Reloads standings when the Standings tab is opened */
   async function loadStandings() {
     setStandingsLoading(true);
     try {
-      const { data } = await getStandings(id);
-      setStandings(data);
+      if (tournament?.format === 'pool') {
+        const { data } = await getPoolStandings(id);
+        setPoolStandings(data);
+      } else {
+        const { data } = await getStandings(id);
+        setStandings(data);
+      }
     } catch {
       setStandings([]);
     } finally {
@@ -1071,13 +1235,14 @@ export default function TournamentDetail() {
           {activeTab === 'playoffs' && (
             <PlayoffsTab
               tournament={tournament} fixtures={fixtures} standings={standings}
-              teamsCount={teams.length}
+              poolStandings={poolStandings} teamsCount={teams.length}
               onPlayoffsGenerated={handlePlayoffsGenerated}
             />
           )}
           {activeTab === 'standings' && (
             <StandingsTab
               standings={standings} tournament={tournament} loading={standingsLoading}
+              poolStandings={poolStandings}
               fixtures={fixtures} teamsCount={teams.length}
             />
           )}

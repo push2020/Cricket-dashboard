@@ -137,6 +137,16 @@ export default function MatchEntry() {
     </div>
   );
 
+  // Teams not yet determined (e.g. Q2 before Q1 and Eliminator are played)
+  if (fixture && (!fixture.homeTeam || !fixture.awayTeam)) {
+    return (
+      <div className="container page">
+        <button className="btn btn-ghost btn-sm" onClick={() => navigate(-1)} style={{ marginBottom: '1.5rem' }}>← Back</button>
+        <div className="error-banner">Teams for this match haven't been determined yet — complete the preceding playoff matches first.</div>
+      </div>
+    );
+  }
+
   // ── Derive batting order from toss ──────────────────────────────────────
   const battingFirstIsHome = homeTeamBattedFirst(tossWinnerId, tossDecision, fixture.homeTeam._id);
   const firstInnTeam  = battingFirstIsHome ? fixture.homeTeam : fixture.awayTeam;

@@ -66,9 +66,17 @@ export function getFixtures(tournamentId) {
   return api.get(`/tournaments/${tournamentId}/fixtures`);
 }
 
-/** Generates round-robin fixtures for a tournament */
-export function generateFixtures(tournamentId) {
-  return api.post(`/tournaments/${tournamentId}/fixtures/generate`);
+/**
+ * Generates fixtures for a tournament.
+ * @param {'standard'|'pool'} format  'pool' splits teams into 2 groups with double round-robin
+ */
+export function generateFixtures(tournamentId, format = 'standard') {
+  return api.post(`/tournaments/${tournamentId}/fixtures/generate`, { format });
+}
+
+/** Returns pool-specific standings { poolA: [], poolB: [] } for pool-format tournaments */
+export function getPoolStandings(tournamentId) {
+  return api.get(`/tournaments/${tournamentId}/pool-standings`);
 }
 
 /** Generates playoff fixtures (Eliminator + Final) from group-stage standings */

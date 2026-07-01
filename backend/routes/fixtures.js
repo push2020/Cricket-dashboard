@@ -66,12 +66,17 @@ router.put('/:id/result', async (req, res) => {
         ),
       ]);
     } else if (fixtureType === 'eliminator' && savedStatus === 'completed' && winner) {
-      // Eliminator winner → Q2 awayTeam (IPL format)
-      // Falls back gracefully if no Q2 exists (legacy 3-team tournaments have no Q2)
-      await Fixture.findOneAndUpdate(
-        { tournamentId: fixture.tournamentId, type: 'qualifier2' },
-        { awayTeam: winner }
-      );
+      // IPL / pool format: winner → Q2 awayTeam
+      // Standard 3-team (no Q2): winner → Final awayTeam
+      const q2 = await Fixture.findOne({ tournamentId: fixture.tournamentId, type: 'qualifier2' });
+      if (q2) {
+        await Fixture.findByIdAndUpdate(q2._id, { awayTeam: winner });
+      } else {
+        await Fixture.findOneAndUpdate(
+          { tournamentId: fixture.tournamentId, type: 'final' },
+          { awayTeam: winner }
+        );
+      }
     } else if (fixtureType === 'qualifier2' && savedStatus === 'completed' && winner) {
       // Q2 winner → Final awayTeam
       await Fixture.findOneAndUpdate(

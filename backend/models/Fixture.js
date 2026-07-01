@@ -13,6 +13,7 @@ const fixtureSchema = new mongoose.Schema(
     awayTeam:     { type: ObjectId, ref: 'Team', default: null },
     round:        { type: Number, required: true },
     type:         { type: String, enum: ['group', 'qualifier1', 'eliminator', 'qualifier2', 'final'], default: 'group' },
+    pool:         { type: String, enum: ['A', 'B', null], default: null },
     status:       { type: String, enum: ['scheduled', 'completed', 'abandoned'], default: 'scheduled' },
     homeInnings:  { type: inningsSchema, default: () => ({ runs: 0, wickets: 0, overs: 0 }) },
     awayInnings:  { type: inningsSchema, default: () => ({ runs: 0, wickets: 0, overs: 0 }) },

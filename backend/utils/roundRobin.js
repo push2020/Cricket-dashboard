@@ -30,4 +30,38 @@ function generateRoundRobin(teamIds) {
   return fixtures;
 }
 
-module.exports = { generateRoundRobin };
+/**
+ * Generates a double round-robin schedule for a pool of teams.
+ * Each pair plays twice — once with each team as home.
+ * Round numbers are sequential (Leg 1 rounds 1…C(n,2), Leg 2 continues after).
+ *
+ * @param {string[]} teamIds
+ * @returns {{ homeTeam: string, awayTeam: string, round: number }[]}
+ */
+function generateDoubleRoundRobin(teamIds) {
+  const n = teamIds.length;
+  const uniquePairs = [];
+
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      uniquePairs.push([i, j]);
+    }
+  }
+
+  const fixtures = [];
+
+  // Leg 1 — teamIds[i] is home
+  uniquePairs.forEach(([i, j], idx) => {
+    fixtures.push({ homeTeam: teamIds[i], awayTeam: teamIds[j], round: idx + 1 });
+  });
+
+  // Leg 2 — teamIds[j] is home (reversed), rounds continue after Leg 1
+  const offset = uniquePairs.length;
+  uniquePairs.forEach(([i, j], idx) => {
+    fixtures.push({ homeTeam: teamIds[j], awayTeam: teamIds[i], round: offset + idx + 1 });
+  });
+
+  return fixtures;
+}
+
+module.exports = { generateRoundRobin, generateDoubleRoundRobin };

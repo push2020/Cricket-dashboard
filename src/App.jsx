@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
+import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
 import Home from './pages/Home';
 import CreateTournament from './pages/CreateTournament';
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/hall-of-fame" element={<HallOfFame />} />
         </Routes>
       </main>
+      <Footer />
     </div>
   );
 }
