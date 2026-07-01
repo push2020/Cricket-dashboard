@@ -33,12 +33,10 @@ function computeHallOfFame(allTournaments, allTeams, allFixtures) {
       if (championTeam) entry(championTeam.name).titles += 1;
     }
 
-    // Aggregate group-stage wins/losses/runs
-    const groupCompleted = tournamentFixtures.filter(
-      (f) => f.status === 'completed' && (f.type ?? 'group') === 'group'
-    );
+    // Aggregate wins/losses/runs from ALL completed matches (group + playoffs)
+    const allCompleted = tournamentFixtures.filter((f) => f.status === 'completed');
 
-    groupCompleted.forEach((f) => {
+    allCompleted.forEach((f) => {
       const homeId = f.homeTeam?.toString() ?? f.homeTeam;
       const awayId = f.awayTeam?.toString() ?? f.awayTeam;
       const homeTeam = tournamentTeams.find((t) => t._id.toString() === homeId);

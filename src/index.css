@@ -2867,97 +2867,139 @@ textarea {
 }
 
 /* ─── Hall of Fame ────────────────────────────────────────────────────── */
-.hof-hero {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 50%, #fffbeb 100%);
-  border: 1px solid rgba(217, 119, 6, 0.2);
-  border-radius: var(--radius-xl);
-  padding: 2rem 2.5rem;
-  margin-bottom: 2rem;
-  overflow: hidden;
-  box-shadow: 0 4px 24px rgba(217, 119, 6, 0.1);
-  animation: scaleIn 0.4s ease both;
+
+@keyframes tableRowIn {
+  from { opacity: 0; transform: translateX(-14px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
-.hof-hero-icon {
-  font-size: 3.5rem;
-  animation: float 3s ease-in-out infinite;
-  filter: drop-shadow(0 4px 10px rgba(217, 119, 6, 0.3));
-  flex-shrink: 0;
-}
-.hof-hero-title {
-  font-size: 1.9rem;
-  font-weight: 900;
-  color: var(--text-primary);
-  letter-spacing: -0.03em;
-}
-.hof-hero-sub {
-  font-size: 0.95rem;
-  color: var(--text-secondary);
-  margin-top: 0.25rem;
+@keyframes winPctFill {
+  from { width: 0; }
+  to   { width: var(--w); }
 }
 
-.hof-podium {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
+/* Hero */
+.hof-hero {
+  display: flex; align-items: center; gap: 1.25rem;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 50%, #fffbeb 100%);
+  border: 1px solid rgba(217,119,6,0.22);
+  border-radius: var(--radius-xl); padding: 2rem 2.5rem;
+  margin-bottom: 2rem; overflow: hidden;
+  box-shadow: 0 4px 24px rgba(217,119,6,0.1);
+  animation: scaleIn 0.4s ease both;
+}
+.hof-hero-icon  { font-size: 3.5rem; animation: float 3s ease-in-out infinite; filter: drop-shadow(0 4px 10px rgba(217,119,6,0.3)); flex-shrink: 0; }
+.hof-hero-title { font-size: 1.9rem; font-weight: 900; color: var(--text-primary); letter-spacing: -0.03em; }
+.hof-hero-sub   { font-size: 0.95rem; color: var(--text-secondary); margin-top: 0.25rem; }
+
+/* Summary stat cards */
+.hof-stats-bar {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;
   margin-bottom: 2rem;
+}
+.hof-stat-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 1.1rem 1.25rem;
+  text-align: center; box-shadow: var(--shadow-xs);
+  animation: scaleIn 0.4s ease both;
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.hof-stat-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+.hof-stat-icon  { font-size: 1.5rem; display: block; margin-bottom: 0.25rem; }
+.hof-stat-val   { font-size: 1.9rem; font-weight: 900; letter-spacing: -0.04em; display: block; line-height: 1.1; }
+.hof-stat-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-top: 0.3rem; display: block; }
+
+/* Olympic podium */
+.hof-podium {
+  display: flex; align-items: flex-end; gap: 0;
+  margin-bottom: 2.5rem; padding: 0 0.5rem;
+}
+.hof-podium-slot {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  animation: fadeInUp 0.45s ease both;
 }
 .hof-podium-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 1.4rem 1rem;
-  text-align: center;
-  box-shadow: var(--shadow-xs);
-  transition:
-    transform var(--transition),
-    box-shadow var(--transition);
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 1.25rem 0.75rem;
+  text-align: center; box-shadow: var(--shadow-xs); width: 100%;
+  transition: transform var(--transition), box-shadow var(--transition);
   animation: scaleIn 0.4s ease both;
 }
-.hof-podium-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow);
+.hof-podium-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); }
+.hof-podium-card.rank-1 { border-color: rgba(217,119,6,0.4);  background: linear-gradient(160deg, #fff, #fffbeb); box-shadow: 0 4px 24px rgba(217,119,6,0.12); }
+.hof-podium-card.rank-2 { border-color: rgba(148,163,184,0.4); }
+.hof-podium-card.rank-3 { border-color: rgba(180,120,60,0.3); }
+.hof-podium-medal  { font-size: 2rem; display: block; margin-bottom: 0.5rem; animation: rankPop 0.6s ease both; }
+.hof-podium-name   { font-size: 0.95rem; font-weight: 800; color: var(--text-primary); margin-bottom: 0.3rem; word-break: break-word; }
+.hof-podium-titles { font-size: 0.82rem; font-weight: 700; color: var(--color-gold); margin-bottom: 0.15rem; }
+.hof-podium-meta   { font-size: 0.72rem; color: var(--text-muted); }
+
+/* Podium stands (steps under card) */
+.hof-podium-stand {
+  width: 100%; border-radius: 10px 10px 0 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; font-weight: 900; color: rgba(255,255,255,0.9);
+  margin-top: 0.5rem;
+  transition: height 0.6s cubic-bezier(0.34,1.2,0.64,1);
 }
-.hof-podium-card.rank-1 {
-  border-color: rgba(217, 119, 6, 0.35);
-  background: linear-gradient(160deg, #ffffff, #fffbeb);
-  box-shadow: 0 4px 20px rgba(217, 119, 6, 0.1);
+.stand-1 { background: linear-gradient(135deg, #f59e0b, #d97706); box-shadow: 0 -4px 16px rgba(245,158,11,0.25); }
+.stand-2 { background: linear-gradient(135deg, #94a3b8, #64748b); }
+.stand-3 { background: linear-gradient(135deg, #b45309, #92400e); }
+
+/* Section header + sort tabs */
+.hof-section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem;
 }
-.hof-podium-card.rank-2 {
-  border-color: rgba(148, 163, 184, 0.4);
+.hof-section-title { font-size: 1rem; font-weight: 800; color: var(--text-primary); }
+.hof-sort-tabs {
+  display: flex; gap: 0.2rem;
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: 100px; padding: 0.2rem;
 }
-.hof-podium-card.rank-3 {
-  border-color: rgba(180, 120, 60, 0.3);
+.hof-sort-btn {
+  background: none; border: none; cursor: pointer;
+  padding: 0.3rem 0.85rem; border-radius: 100px;
+  font-size: 0.76rem; font-weight: 600; color: var(--text-muted);
+  transition: all var(--transition); white-space: nowrap;
 }
-.hof-podium-medal {
-  font-size: 2rem;
-  display: block;
-  margin-bottom: 0.5rem;
-  animation: rankPop 0.6s ease both;
+.hof-sort-btn.active { background: var(--bg-card); color: var(--color-green); box-shadow: var(--shadow-xs); }
+.hof-sort-btn:hover:not(.active) { color: var(--text-secondary); }
+
+/* Table enhancements */
+.hof-table-row { animation: tableRowIn 0.35s ease both; }
+.hof-team-cell { display: flex; align-items: center; gap: 0.5rem; }
+.hof-title-chip {
+  font-size: 0.65rem; font-weight: 800;
+  background: rgba(217,119,6,0.1); color: var(--color-gold);
+  border: 1px solid rgba(217,119,6,0.2); border-radius: 100px;
+  padding: 0.08rem 0.45rem; flex-shrink: 0;
 }
-.hof-podium-name {
-  font-size: 1rem;
-  font-weight: 800;
-  color: var(--text-primary);
-  margin-bottom: 0.3rem;
-  word-break: break-word;
+.hof-winpct-cell { display: flex; flex-direction: column; gap: 0.2rem; min-width: 60px; }
+.hof-winpct-bar  { height: 4px; background: var(--border); border-radius: 100px; overflow: hidden; }
+.hof-winpct-fill {
+  height: 100%; background: linear-gradient(90deg, var(--color-green-dim), var(--color-green));
+  border-radius: 100px;
+  animation: winPctFill 0.8s ease 0.3s both;
 }
-.hof-podium-titles {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--color-gold);
-}
-.hof-podium-stats {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin-top: 0.3rem;
+.hof-row-gold { background: rgba(217,119,6,0.04); border-left: 3px solid var(--color-gold); }
+
+/* Footnote */
+.hof-footnote {
+  font-size: 0.78rem; color: var(--text-muted);
+  margin-top: 1.25rem; text-align: center;
+  padding: 0.65rem 1rem;
+  background: var(--bg-secondary); border-radius: var(--radius);
+  border: 1px solid var(--border);
 }
 
-.hof-row-gold {
-  background: rgba(217, 119, 6, 0.04);
-  border-left: 3px solid var(--color-gold);
+/* Responsive */
+@media (max-width: 640px) {
+  .hof-stats-bar { grid-template-columns: repeat(2, 1fr); }
+  .hof-podium    { gap: 0.25rem; }
+  .hof-podium-card { padding: 1rem 0.5rem; }
+  .hof-podium-name { font-size: 0.8rem; }
+  .hof-section-header { flex-direction: column; align-items: flex-start; }
+  .hof-sort-tabs .hof-sort-btn { padding: 0.28rem 0.6rem; font-size: 0.7rem; }
 }
 
 /* ─── Pool format ─────────────────────────────────────────────────────── */
