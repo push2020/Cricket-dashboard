@@ -4,31 +4,29 @@ import { getFixture, enterResult } from '../api';
 
 const INITIAL_INNINGS = { runs: '', wickets: '' };
 
+/** Returns true if the home team batted first based on toss */
+function homeTeamBattedFirst(tossWinnerId, tossDecision, homeTeamId) {
+  if (!tossWinnerId || !tossDecision) return true;
+  const tossWinnerIsHome = tossWinnerId === homeTeamId;
+  return tossDecision === 'bat' ? tossWinnerIsHome : !tossWinnerIsHome;
+}
+
 /**
- * Auto-generates a result note from innings and winner for the Final.
- *
- * @param {object} fixture
- * @param {object} homeInn
- * @param {object} awayInn
- * @param {string} winnerId
- * @returns {string}
+ * Generates result note based on batting order (not home/away).
+ * firstInnTeam batted first (set target); secondInnTeam chased.
  */
-function buildResultNote(fixture, homeInn, awayInn, winnerId) {
-  if (!fixture || !winnerId) return '';
-  const homeRuns = Number(homeInn.runs);
-  const awayRuns = Number(awayInn.runs);
-  const awayWickets = Number(awayInn.wickets);
-  if (winnerId === fixture.homeTeam._id) {
-    const margin = homeRuns - awayRuns;
-    return `${fixture.homeTeam.name} won by ${margin} run${margin !== 1 ? 's' : ''}`;
+function buildResultNote(firstInnTeam, secondInnTeam, firstInn, secondInn, winnerId) {
+  if (!firstInnTeam || !secondInnTeam || !winnerId) return '';
+  const firstRuns     = Number(firstInn.runs);
+  const secondRuns    = Number(secondInn.runs);
+  const secondWickets = Number(secondInn.wickets);
+  if (winnerId === firstInnTeam._id) {
+    const margin = firstRuns - secondRuns;
+    return `${firstInnTeam.name} won by ${margin} run${margin !== 1 ? 's' : ''}`;
   }
-  if (winnerId === fixture.awayTeam._id) {
-    if (awayRuns > homeRuns) {
-      const wicketsLeft = 10 - awayWickets;
-      return `${fixture.awayTeam.name} won by ${wicketsLeft} wicket${wicketsLeft !== 1 ? 's' : ''}`;
-    }
-    const margin = awayRuns - homeRuns;
-    return `${fixture.awayTeam.name} won by ${margin} run${margin !== 1 ? 's' : ''}`;
+  if (winnerId === secondInnTeam._id) {
+    const wicketsLeft = 10 - secondWickets;
+    return `${secondInnTeam.name} won by ${wicketsLeft} wicket${wicketsLeft !== 1 ? 's' : ''}`;
   }
   return '';
 }
@@ -112,14 +110,23 @@ export default function FinalMatch() {
     load();
   }, [id, navigate]);
 
-  /** Auto-sets winner from run comparison */
+  // ── Derive batting order from toss ──────────────────────────────────
+  const battingFirstIsHome = homeTeamBattedFirst(tossWinnerId, tossDecision, fixture?.homeTeam?._id);
+  const firstInnTeam  = battingFirstIsHome ? fixture?.homeTeam : fixture?.awayTeam;
+  const secondInnTeam = battingFirstIsHome ? fixture?.awayTeam : fixture?.homeTeam;
+  const firstInn      = battingFirstIsHome ? homeInn  : awayInn;
+  const secondInn     = battingFirstIsHome ? awayInn  : homeInn;
+  const setFirstInn   = battingFirstIsHome ? setHomeInn  : setAwayInn;
+  const setSecondInn  = battingFirstIsHome ? setAwayInn  : setHomeInn;
+
+  /** Auto-sets winner from batting-order run comparison */
   function handleAutoResult() {
     if (!fixture) return;
-    const home = Number(homeInn.runs);
-    const away = Number(awayInn.runs);
-    if (home > away) setWinnerId(fixture.homeTeam._id);
-    else if (away > home) setWinnerId(fixture.awayTeam._id);
-    else setWinnerId('');
+    const first  = Number(firstInn.runs);
+    const second = Number(secondInn.runs);
+    if (first > second)      setWinnerId(firstInnTeam._id);
+    else if (second > first) setWinnerId(secondInnTeam._id);
+    else                     setWinnerId('');
   }
 
   /** Validates and submits the final result */
@@ -132,7 +139,7 @@ export default function FinalMatch() {
     const tournamentOvers = fixture.tournamentId?.overs ?? 0;
     const resultNote = status === 'abandoned'
       ? 'Match abandoned'
-      : buildResultNote(fixture, homeInn, awayInn, winnerId);
+      : buildResultNote(firstInnTeam, secondInnTeam, firstInn, secondInn, winnerId);
 
     try {
       setSubmitting(true);
@@ -177,7 +184,7 @@ export default function FinalMatch() {
     );
   }
 
-  const autoResultNote = status === 'completed' ? buildResultNote(fixture, homeInn, awayInn, winnerId) : '';
+  const autoResultNote = status === 'completed' ? buildResultNote(firstInnTeam, secondInnTeam, firstInn, secondInn, winnerId) : '';
 
   return (
     <div className="container page">
@@ -235,8 +242,8 @@ export default function FinalMatch() {
         {status === 'completed' && (
           <>
             <div className="match-entry-layout" style={{ marginBottom: '1.5rem' }}>
-              <InningsInput label="Innings" teamName={fixture.homeTeam.name} value={homeInn} onChange={setHomeInn} />
-              <InningsInput label="Innings" teamName={fixture.awayTeam.name} value={awayInn} onChange={setAwayInn} />
+              <InningsInput label="1st Innings" teamName={firstInnTeam.name}  value={firstInn}  onChange={setFirstInn} />
+              <InningsInput label="2nd Innings" teamName={secondInnTeam.name} value={secondInn} onChange={setSecondInn} />
             </div>
 
             <div className="card" style={{ marginBottom: '1.5rem' }}>

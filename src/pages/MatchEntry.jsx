@@ -5,44 +5,57 @@ import { getFixture, enterResult } from '../api';
 const INITIAL_INNINGS = { runs: '', wickets: '' };
 
 /**
- * Auto-generates a result note string from innings data and winner info.
- * Returns an empty string if not enough data is available.
+ * Determines which team batted first based on toss information.
+ * Returns true if the home team batted first.
  *
- * @param {object} fixture - The populated fixture document
- * @param {object} homeInn - Home innings form state
- * @param {object} awayInn - Away innings form state
- * @param {string} winnerId - The _id of the winning team (or '' for tie)
+ * @param {string} tossWinnerId
+ * @param {string} tossDecision  'bat' | 'field'
+ * @param {string} homeTeamId
+ * @returns {boolean}
+ */
+function homeTeamBattedFirst(tossWinnerId, tossDecision, homeTeamId) {
+  if (!tossWinnerId || !tossDecision) return true; // default: home bats first
+  const tossWinnerIsHome = tossWinnerId === homeTeamId;
+  return tossDecision === 'bat' ? tossWinnerIsHome : !tossWinnerIsHome;
+}
+
+/**
+ * Generates a result note based on batting order.
+ * firstInnTeam = team that batted first (set the target)
+ * secondInnTeam = team that chased
+ *
+ * @param {object} firstInnTeam
+ * @param {object} secondInnTeam
+ * @param {object} firstInn  - { runs, wickets }
+ * @param {object} secondInn - { runs, wickets }
+ * @param {string} winnerId
  * @returns {string}
  */
-function buildResultNote(fixture, homeInn, awayInn, winnerId) {
-  if (!fixture || !winnerId) return '';
+function buildResultNote(firstInnTeam, secondInnTeam, firstInn, secondInn, winnerId) {
+  if (!firstInnTeam || !secondInnTeam || !winnerId) return '';
 
-  const homeRuns = Number(homeInn.runs);
-  const awayRuns = Number(awayInn.runs);
-  const awayWickets = Number(awayInn.wickets);
+  const firstRuns  = Number(firstInn.runs);
+  const secondRuns = Number(secondInn.runs);
+  const secondWickets = Number(secondInn.wickets);
 
-  if (winnerId === fixture.homeTeam._id) {
-    const margin = homeRuns - awayRuns;
-    return `${fixture.homeTeam.name} won by ${margin} run${margin !== 1 ? 's' : ''}`;
+  if (winnerId === firstInnTeam._id) {
+    // Set the target and defended it → won by runs
+    const margin = firstRuns - secondRuns;
+    return `${firstInnTeam.name} won by ${margin} run${margin !== 1 ? 's' : ''}`;
   }
-  if (winnerId === fixture.awayTeam._id) {
-    if (awayRuns > homeRuns) {
-      const wicketsLeft = 10 - awayWickets;
-      return `${fixture.awayTeam.name} won by ${wicketsLeft} wicket${wicketsLeft !== 1 ? 's' : ''}`;
-    }
-    const margin = awayRuns - homeRuns;
-    return `${fixture.awayTeam.name} won by ${margin} run${margin !== 1 ? 's' : ''}`;
+  if (winnerId === secondInnTeam._id) {
+    // Chased successfully → won by wickets
+    const wicketsLeft = 10 - secondWickets;
+    return `${secondInnTeam.name} won by ${wicketsLeft} wicket${wicketsLeft !== 1 ? 's' : ''}`;
   }
   return '';
 }
 
-/** Single innings input group — runs and wickets only (overs taken from tournament setting) */
+/** Single innings input group */
 function InningsInput({ label, teamName, value, onChange }) {
-  /** Propagates a field change up to the parent handler */
   function handleField(field, raw) {
     onChange({ ...value, [field]: raw });
   }
-
   return (
     <div className="innings-card">
       <div className="innings-header">
@@ -53,26 +66,13 @@ function InningsInput({ label, teamName, value, onChange }) {
         <div className="innings-row">
           <div>
             <div className="innings-stat-label">Runs</div>
-            <input
-              className="form-input"
-              type="number"
-              min="0"
-              placeholder="0"
-              value={value.runs}
-              onChange={(e) => handleField('runs', e.target.value)}
-            />
+            <input className="form-input" type="number" min="0" placeholder="0"
+              value={value.runs} onChange={(e) => handleField('runs', e.target.value)} />
           </div>
           <div>
             <div className="innings-stat-label">Wickets</div>
-            <input
-              className="form-input"
-              type="number"
-              min="0"
-              max="10"
-              placeholder="0"
-              value={value.wickets}
-              onChange={(e) => handleField('wickets', e.target.value)}
-            />
+            <input className="form-input" type="number" min="0" max="10" placeholder="0"
+              value={value.wickets} onChange={(e) => handleField('wickets', e.target.value)} />
           </div>
         </div>
       </div>
@@ -80,25 +80,24 @@ function InningsInput({ label, teamName, value, onChange }) {
   );
 }
 
-/** Match Entry page — lets the user record scores for a fixture */
+/** Match Entry page */
 export default function MatchEntry() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [fixture, setFixture] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const [fixture,     setFixture]     = useState(null);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState('');
+  const [success,     setSuccess]     = useState('');
+  const [submitting,  setSubmitting]  = useState(false);
 
-  const [homeInn, setHomeInn] = useState(INITIAL_INNINGS);
-  const [awayInn, setAwayInn] = useState(INITIAL_INNINGS);
-  const [winnerId, setWinnerId] = useState('');
+  const [homeInn,      setHomeInn]      = useState(INITIAL_INNINGS);
+  const [awayInn,      setAwayInn]      = useState(INITIAL_INNINGS);
+  const [winnerId,     setWinnerId]     = useState('');
   const [tossWinnerId, setTossWinnerId] = useState('');
   const [tossDecision, setTossDecision] = useState('bat');
-  const [status, setStatus] = useState('completed');
+  const [status,       setStatus]       = useState('completed');
 
-  /** Loads the fixture and pre-fills the form if a result already exists */
   useEffect(() => {
     async function load() {
       try {
@@ -109,14 +108,8 @@ export default function MatchEntry() {
         }
         setFixture(data);
         if (data.status !== 'scheduled') {
-          setHomeInn({
-            runs: String(data.homeInnings?.runs ?? ''),
-            wickets: String(data.homeInnings?.wickets ?? ''),
-          });
-          setAwayInn({
-            runs: String(data.awayInnings?.runs ?? ''),
-            wickets: String(data.awayInnings?.wickets ?? ''),
-          });
+          setHomeInn({ runs: String(data.homeInnings?.runs ?? ''), wickets: String(data.homeInnings?.wickets ?? '') });
+          setAwayInn({ runs: String(data.awayInnings?.runs ?? ''), wickets: String(data.awayInnings?.wickets ?? '') });
           setWinnerId(data.winner?._id ?? '');
           setTossWinnerId(data.tossWinner?._id ?? '');
           setTossDecision(data.tossDecision ?? 'bat');
@@ -131,50 +124,49 @@ export default function MatchEntry() {
     load();
   }, [id]);
 
-  /** Derives and sets the winner from current innings data */
+  if (loading) return <div className="container"><div className="loading-wrap"><div className="spinner" />Loading match…</div></div>;
+  if (error && !fixture) return (
+    <div className="container page">
+      <div className="error-banner">{error}</div>
+      <button className="btn btn-ghost" onClick={() => navigate(-1)}>← Back</button>
+    </div>
+  );
+
+  // ── Derive batting order from toss ──────────────────────────────────────
+  const battingFirstIsHome = homeTeamBattedFirst(tossWinnerId, tossDecision, fixture.homeTeam._id);
+  const firstInnTeam  = battingFirstIsHome ? fixture.homeTeam : fixture.awayTeam;
+  const secondInnTeam = battingFirstIsHome ? fixture.awayTeam : fixture.homeTeam;
+  const firstInn      = battingFirstIsHome ? homeInn  : awayInn;
+  const secondInn     = battingFirstIsHome ? awayInn  : homeInn;
+  const setFirstInn   = battingFirstIsHome ? setHomeInn  : setAwayInn;
+  const setSecondInn  = battingFirstIsHome ? setAwayInn  : setHomeInn;
+
   function handleAutoResult() {
-    if (!fixture) return;
-    const home = Number(homeInn.runs);
-    const away = Number(awayInn.runs);
-    if (home > away) {
-      setWinnerId(fixture.homeTeam._id);
-    } else if (away > home) {
-      setWinnerId(fixture.awayTeam._id);
-    } else {
-      setWinnerId('');
-    }
+    const first  = Number(firstInn.runs);
+    const second = Number(secondInn.runs);
+    if (first > second)       setWinnerId(firstInnTeam._id);
+    else if (second > first)  setWinnerId(secondInnTeam._id);
+    else                      setWinnerId('');
   }
 
-  /** Validates and submits the result to the API */
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
     setSuccess('');
 
-    if (status === 'completed') {
-      if (homeInn.runs === '' || awayInn.runs === '') {
-        return setError('Please enter runs for both teams.');
-      }
-    }
+    if (status === 'completed' && (homeInn.runs === '' || awayInn.runs === ''))
+      return setError('Please enter runs for both teams.');
 
     const tournamentOvers = fixture.tournamentId?.overs ?? 0;
     const resultNote = status === 'abandoned'
       ? 'Match abandoned'
-      : buildResultNote(fixture, homeInn, awayInn, winnerId);
+      : buildResultNote(firstInnTeam, secondInnTeam, firstInn, secondInn, winnerId);
 
     try {
       setSubmitting(true);
       await enterResult(id, {
-        homeInnings: {
-          runs: Number(homeInn.runs) || 0,
-          wickets: Number(homeInn.wickets) || 0,
-          overs: tournamentOvers,
-        },
-        awayInnings: {
-          runs: Number(awayInn.runs) || 0,
-          wickets: Number(awayInn.wickets) || 0,
-          overs: tournamentOvers,
-        },
+        homeInnings: { runs: Number(homeInn.runs) || 0, wickets: Number(homeInn.wickets) || 0, overs: tournamentOvers },
+        awayInnings: { runs: Number(awayInn.runs) || 0, wickets: Number(awayInn.wickets) || 0, overs: tournamentOvers },
         winner: status === 'completed' ? winnerId || null : null,
         resultNote,
         tossWinner: tossWinnerId || null,
@@ -183,9 +175,7 @@ export default function MatchEntry() {
         status,
       });
       setSuccess('Result saved successfully!');
-      setTimeout(() => {
-        navigate(`/tournament/${fixture.tournamentId._id}?tab=fixtures`);
-      }, 1200);
+      setTimeout(() => navigate(`/tournament/${fixture.tournamentId._id}?tab=fixtures`), 1200);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save result.');
     } finally {
@@ -193,110 +183,50 @@ export default function MatchEntry() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="container">
-        <div className="loading-wrap">
-          <div className="spinner" />
-          Loading match…
-        </div>
-      </div>
-    );
-  }
-
-  if (error && !fixture) {
-    return (
-      <div className="container page">
-        <div className="error-banner">{error}</div>
-        <button className="btn btn-ghost" onClick={() => navigate(-1)}>← Back</button>
-      </div>
-    );
-  }
-
-  if (fixture && fixture.type === 'final' && !fixture.awayTeam) {
-    return (
-      <div className="container page">
-        <button className="btn btn-ghost btn-sm" onClick={() => navigate(-1)} style={{ marginBottom: '1.5rem' }}>
-          ← Back
-        </button>
-        <div className="error-banner">
-          The Final cannot be played yet — complete the Eliminator match first.
-        </div>
-      </div>
-    );
-  }
-
-  const fixtureTypeLabel = (() => {
-    if (fixture.type === 'eliminator') return 'Eliminator';
-    if (fixture.type === 'final') return 'Final';
-    return `Round ${fixture.round}`;
-  })();
-
-  const autoResultNote = status === 'completed'
-    ? buildResultNote(fixture, homeInn, awayInn, winnerId)
-    : '';
+  const fixtureTypeLabel = fixture.type === 'eliminator' ? 'Eliminator' : fixture.type === 'final' ? 'Final' : `Round ${fixture.round}`;
+  const autoResultNote   = status === 'completed' ? buildResultNote(firstInnTeam, secondInnTeam, firstInn, secondInn, winnerId) : '';
 
   return (
     <div className="container page">
-      <button className="btn btn-ghost btn-sm" onClick={() => navigate(-1)} style={{ marginBottom: '1.5rem' }}>
-        ← Back
-      </button>
+      <button className="btn btn-ghost btn-sm" onClick={() => navigate(-1)} style={{ marginBottom: '1.5rem' }}>← Back</button>
 
       <div className="page-header">
         <h1 className="page-title">
           {fixture.homeTeam.name} <span className="text-muted" style={{ fontWeight: 400 }}>vs</span> {fixture.awayTeam.name}
         </h1>
-        <p className="page-subtitle">
-          {fixtureTypeLabel} · {fixture.tournamentId?.name}
-        </p>
+        <p className="page-subtitle">{fixtureTypeLabel} · {fixture.tournamentId?.name}</p>
       </div>
 
-      {error && <div className="error-banner">{error}</div>}
+      {error   && <div className="error-banner">{error}</div>}
       {success && <div className="success-banner">{success}</div>}
 
       <form onSubmit={handleSubmit}>
-        {/* Toss row */}
+        {/* Toss & match details */}
         <div className="card" style={{ marginBottom: '1.5rem' }}>
-          <div className="card-header">
-            <span className="card-title">Match Details</span>
-          </div>
+          <div className="card-header"><span className="card-title">Match Details</span></div>
           <div className="card-body">
             <div className="form-grid">
               <div className="form-group">
                 <label className="form-label" htmlFor="toss-winner">Toss Won By</label>
-                <select
-                  id="toss-winner"
-                  className="form-select"
-                  value={tossWinnerId}
-                  onChange={(e) => setTossWinnerId(e.target.value)}
-                >
+                <select id="toss-winner" className="form-select" value={tossWinnerId}
+                  onChange={(e) => setTossWinnerId(e.target.value)}>
                   <option value="">— Select —</option>
                   <option value={fixture.homeTeam._id}>{fixture.homeTeam.name}</option>
                   <option value={fixture.awayTeam._id}>{fixture.awayTeam.name}</option>
                 </select>
               </div>
-
               <div className="form-group">
                 <label className="form-label" htmlFor="toss-decision">Elected To</label>
-                <select
-                  id="toss-decision"
-                  className="form-select"
-                  value={tossDecision}
-                  onChange={(e) => setTossDecision(e.target.value)}
-                >
+                <select id="toss-decision" className="form-select" value={tossDecision}
+                  onChange={(e) => setTossDecision(e.target.value)}>
                   <option value="bat">Bat</option>
                   <option value="field">Field</option>
                 </select>
               </div>
-
               <div className="form-group">
                 <label className="form-label" htmlFor="match-status">Result Status</label>
-                <select
-                  id="match-status"
-                  className="form-select"
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                >
+                <select id="match-status" className="form-select" value={status}
+                  onChange={(e) => setStatus(e.target.value)}>
                   <option value="completed">Completed</option>
                   <option value="abandoned">Abandoned / No Result</option>
                 </select>
@@ -305,33 +235,18 @@ export default function MatchEntry() {
           </div>
         </div>
 
-        {/* Innings */}
+        {/* Innings — ordered by batting order derived from toss */}
         {status === 'completed' && (
           <>
             <div className="match-entry-layout" style={{ marginBottom: '1.5rem' }}>
-              <InningsInput
-                label="Innings"
-                teamName={fixture.homeTeam.name}
-                value={homeInn}
-                onChange={setHomeInn}
-              />
-              <InningsInput
-                label="Innings"
-                teamName={fixture.awayTeam.name}
-                value={awayInn}
-                onChange={setAwayInn}
-              />
+              <InningsInput label="1st Innings" teamName={firstInnTeam.name}  value={firstInn}  onChange={setFirstInn} />
+              <InningsInput label="2nd Innings" teamName={secondInnTeam.name} value={secondInn} onChange={setSecondInn} />
             </div>
 
-            {/* Winner */}
             <div className="card" style={{ marginBottom: '1.5rem' }}>
               <div className="card-header">
                 <span className="card-title">Result</span>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={handleAutoResult}
-                >
+                <button type="button" className="btn btn-secondary btn-sm" onClick={handleAutoResult}>
                   Auto-detect Winner
                 </button>
               </div>
@@ -339,23 +254,16 @@ export default function MatchEntry() {
                 <div className="form-grid">
                   <div className="form-group">
                     <label className="form-label" htmlFor="winner">Winner</label>
-                    <select
-                      id="winner"
-                      className="form-select"
-                      value={winnerId}
-                      onChange={(e) => setWinnerId(e.target.value)}
-                    >
+                    <select id="winner" className="form-select" value={winnerId}
+                      onChange={(e) => setWinnerId(e.target.value)}>
                       <option value="">Tie / No Result</option>
                       <option value={fixture.homeTeam._id}>{fixture.homeTeam.name}</option>
                       <option value={fixture.awayTeam._id}>{fixture.awayTeam.name}</option>
                     </select>
                   </div>
                 </div>
-
                 {autoResultNote && (
-                  <div className="result-preview" style={{ marginTop: '1rem' }}>
-                    {autoResultNote}
-                  </div>
+                  <div className="result-preview" style={{ marginTop: '1rem' }}>{autoResultNote}</div>
                 )}
               </div>
             </div>
@@ -366,9 +274,7 @@ export default function MatchEntry() {
           <button type="submit" className="btn btn-primary btn-lg" disabled={submitting}>
             {submitting ? 'Saving…' : 'Save Result'}
           </button>
-          <button type="button" className="btn btn-ghost" onClick={() => navigate(-1)}>
-            Cancel
-          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => navigate(-1)}>Cancel</button>
         </div>
       </form>
     </div>
