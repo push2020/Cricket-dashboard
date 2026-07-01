@@ -178,35 +178,79 @@ router.post('/:id/playoffs/generate', async (req, res) => {
     );
 
     const standings = computeStandings(teams, populatedGroupFixtures);
-    if (standings.length < 3)
-      return res.status(400).json({ message: 'Need at least 3 teams in standings for playoffs' });
-
-    const [first, second, third] = standings;
+    const [first, second, third, fourth] = standings;
     const maxRound = groupFixtures.reduce((m, f) => Math.max(m, f.round), 0);
 
-    // Eliminator: 2nd vs 3rd
-    await Fixture.create({
-      tournamentId: req.params.id,
-      homeTeam: second.team._id,
-      awayTeam: third.team._id,
-      round: maxRound + 1,
-      type: 'eliminator',
-      status: 'scheduled',
-      homeInnings: { runs: 0, wickets: 0, overs: 0 },
-      awayInnings: { runs: 0, wickets: 0, overs: 0 },
-    });
+    if (teams.length === 3) {
+      // Exactly 3 teams → Direct Final between 1st and 2nd (no Eliminator)
+      if (standings.length < 2)
+        return res.status(400).json({ message: 'Need at least 2 teams in standings for playoffs' });
 
-    // Final: 1st vs TBD (awayTeam set after Eliminator)
-    await Fixture.create({
-      tournamentId: req.params.id,
-      homeTeam: first.team._id,
-      awayTeam: null,
-      round: maxRound + 2,
-      type: 'final',
-      status: 'scheduled',
-      homeInnings: { runs: 0, wickets: 0, overs: 0 },
-      awayInnings: { runs: 0, wickets: 0, overs: 0 },
-    });
+      await Fixture.create({
+        tournamentId: req.params.id,
+        homeTeam: first.team._id,
+        awayTeam: second.team._id,
+        round: maxRound + 1,
+        type: 'final',
+        status: 'scheduled',
+        homeInnings: { runs: 0, wickets: 0, overs: 0 },
+        awayInnings: { runs: 0, wickets: 0, overs: 0 },
+      });
+    } else {
+      // 4+ teams → IPL format: Q1 (1st vs 2nd), Eliminator (3rd vs 4th), Q2, Final
+      if (standings.length < 4)
+        return res.status(400).json({ message: 'Need at least 4 teams in standings for IPL playoffs' });
+
+      const inningsDefault = { runs: 0, wickets: 0, overs: 0 };
+
+      // Qualifier 1: 1st vs 2nd — winner goes to Final, loser goes to Q2
+      await Fixture.create({
+        tournamentId: req.params.id,
+        homeTeam: first.team._id,
+        awayTeam: second.team._id,
+        round: maxRound + 1,
+        type: 'qualifier1',
+        status: 'scheduled',
+        homeInnings: inningsDefault,
+        awayInnings: inningsDefault,
+      });
+
+      // Eliminator: 3rd vs 4th — winner goes to Q2, loser is eliminated
+      await Fixture.create({
+        tournamentId: req.params.id,
+        homeTeam: third.team._id,
+        awayTeam: fourth.team._id,
+        round: maxRound + 1,
+        type: 'eliminator',
+        status: 'scheduled',
+        homeInnings: inningsDefault,
+        awayInnings: inningsDefault,
+      });
+
+      // Qualifier 2: Q1 loser vs Eliminator winner — both TBD, filled in after Q1 and Eliminator
+      await Fixture.create({
+        tournamentId: req.params.id,
+        homeTeam: null,
+        awayTeam: null,
+        round: maxRound + 2,
+        type: 'qualifier2',
+        status: 'scheduled',
+        homeInnings: inningsDefault,
+        awayInnings: inningsDefault,
+      });
+
+      // Final: Q1 winner vs Q2 winner — both TBD until Q1 and Q2 are played
+      await Fixture.create({
+        tournamentId: req.params.id,
+        homeTeam: null,
+        awayTeam: null,
+        round: maxRound + 3,
+        type: 'final',
+        status: 'scheduled',
+        homeInnings: inningsDefault,
+        awayInnings: inningsDefault,
+      });
+    }
 
     tournament.playoffGenerated = true;
     await tournament.save();

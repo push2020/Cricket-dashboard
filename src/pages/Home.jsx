@@ -139,14 +139,16 @@ export default function Home() {
                   <span>🎯 {t.overs} overs</span>
                 </div>
                 <div className="divider" style={{ margin: '0.85rem 0' }} />
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button
-                    className="btn btn-danger btn-sm"
-                    onClick={(e) => handleDelete(e, t._id)}
-                  >
-                    Delete
-                  </button>
-                </div>
+                {t.status !== 'completed' && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      className="btn btn-danger btn-sm"
+                      onClick={(e) => handleDelete(e, t._id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

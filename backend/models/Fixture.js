@@ -9,10 +9,10 @@ const inningsSchema = new mongoose.Schema(
 const fixtureSchema = new mongoose.Schema(
   {
     tournamentId: { type: ObjectId, ref: 'Tournament', required: true },
-    homeTeam:     { type: ObjectId, ref: 'Team', required: true },
+    homeTeam:     { type: ObjectId, ref: 'Team', default: null },
     awayTeam:     { type: ObjectId, ref: 'Team', default: null },
     round:        { type: Number, required: true },
-    type:         { type: String, enum: ['group', 'eliminator', 'final'], default: 'group' },
+    type:         { type: String, enum: ['group', 'qualifier1', 'eliminator', 'qualifier2', 'final'], default: 'group' },
     status:       { type: String, enum: ['scheduled', 'completed', 'abandoned'], default: 'scheduled' },
     homeInnings:  { type: inningsSchema, default: () => ({ runs: 0, wickets: 0, overs: 0 }) },
     awayInnings:  { type: inningsSchema, default: () => ({ runs: 0, wickets: 0, overs: 0 }) },

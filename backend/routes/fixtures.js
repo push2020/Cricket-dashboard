@@ -1,6 +1,7 @@
 const router     = require('express').Router();
 const Fixture    = require('../models/Fixture');
 const Tournament = require('../models/Tournament');
+const Team       = require('../models/Team');
 
 /** Returns a fully populated fixture (including tournamentId for MatchEntry / FinalMatch) */
 async function getPopulated(id) {
@@ -31,8 +32,8 @@ router.put('/:id/result', async (req, res) => {
 
     const fixtureType = fixture.type ?? 'group';
 
-    if (fixtureType === 'final' && !fixture.awayTeam)
-      return res.status(400).json({ message: 'Cannot enter Final result until the Eliminator is played' });
+    if (['qualifier2', 'final'].includes(fixtureType) && (!fixture.homeTeam || !fixture.awayTeam))
+      return res.status(400).json({ message: 'Cannot enter result until all preceding playoff matches are played' });
 
     const { homeInnings, awayInnings, winner, resultNote, tossWinner, tossDecision, status } = req.body;
     const savedStatus = status || 'completed';
@@ -48,8 +49,31 @@ router.put('/:id/result', async (req, res) => {
 
     /* ── Post-save side effects ── */
 
-    if (fixtureType === 'eliminator' && savedStatus === 'completed' && winner) {
-      // Wire the Eliminator winner into the Final as awayTeam
+    if (fixtureType === 'qualifier1' && savedStatus === 'completed' && winner) {
+      // Q1 winner → Final homeTeam; Q1 loser → Q2 homeTeam
+      const homeId = fixture.homeTeam.toString();
+      const awayId = fixture.awayTeam.toString();
+      const loser  = winner.toString() === homeId ? awayId : homeId;
+
+      await Promise.all([
+        Fixture.findOneAndUpdate(
+          { tournamentId: fixture.tournamentId, type: 'final' },
+          { homeTeam: winner }
+        ),
+        Fixture.findOneAndUpdate(
+          { tournamentId: fixture.tournamentId, type: 'qualifier2' },
+          { homeTeam: loser }
+        ),
+      ]);
+    } else if (fixtureType === 'eliminator' && savedStatus === 'completed' && winner) {
+      // Eliminator winner → Q2 awayTeam (IPL format)
+      // Falls back gracefully if no Q2 exists (legacy 3-team tournaments have no Q2)
+      await Fixture.findOneAndUpdate(
+        { tournamentId: fixture.tournamentId, type: 'qualifier2' },
+        { awayTeam: winner }
+      );
+    } else if (fixtureType === 'qualifier2' && savedStatus === 'completed' && winner) {
+      // Q2 winner → Final awayTeam
       await Fixture.findOneAndUpdate(
         { tournamentId: fixture.tournamentId, type: 'final' },
         { awayTeam: winner }
@@ -57,8 +81,7 @@ router.put('/:id/result', async (req, res) => {
     } else if (fixtureType === 'final') {
       // Final done → tournament complete
       await Tournament.findByIdAndUpdate(fixture.tournamentId, { status: 'completed' });
-    } else {
-      // Group stage: auto-complete tournament only when no playoffs are pending
+    } else if (fixtureType === 'group') {
       const tournament = await Tournament.findById(fixture.tournamentId);
       if (!tournament?.playoffGenerated) {
         const pendingCount = await Fixture.countDocuments({
@@ -66,7 +89,14 @@ router.put('/:id/result', async (req, res) => {
           status: 'scheduled',
         });
         if (pendingCount === 0) {
-          await Tournament.findByIdAndUpdate(fixture.tournamentId, { status: 'completed' });
+          // Only auto-complete for very small tournaments (< 3 teams) where no
+          // playoffs are possible. For 3+ team tournaments, completion is owned
+          // by the Final fixture handler — premature completion here would mark
+          // the tournament done before playoffs are even generated.
+          const teamCount = await Team.countDocuments({ tournamentId: fixture.tournamentId });
+          if (teamCount < 3) {
+            await Tournament.findByIdAndUpdate(fixture.tournamentId, { status: 'completed' });
+          }
         }
       }
     }

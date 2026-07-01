@@ -4,9 +4,30 @@ import { getHallOfFame } from '../api';
 
 const RANK_MEDALS = ['🥇', '🥈', '🥉'];
 
-/** Returns the initials of a team name for the avatar */
-function initials(name) {
-  return name.split(' ').slice(0, 2).map((w) => w[0].toUpperCase()).join('');
+const TEAM_EMOJIS = [
+  '🦁', '🐯', '🦊', '🦅', '🐉', '🦈', '⚡', '🔥',
+  '🌟', '🦋', '🌊', '🎯', '💎', '🌪️', '🐺', '🐆',
+  '🦏', '🦬', '🦩', '🦚', '🐊', '🦁', '🌈', '🎪',
+];
+
+function nameHash(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) {
+    h = ((h << 5) - h) + name.charCodeAt(i);
+    h |= 0;
+  }
+  return Math.abs(h);
+}
+
+function teamEmoji(name) { return TEAM_EMOJIS[nameHash(name) % TEAM_EMOJIS.length]; }
+
+function teamAvatarStyle(name) {
+  const h = nameHash(name) % 360;
+  return {
+    background: `linear-gradient(135deg, hsl(${h},72%,58%), hsl(${(h + 35) % 360},65%,44%))`,
+    border: 'none',
+    boxShadow: `0 2px 8px hsla(${h},60%,45%,0.35)`,
+  };
 }
 
 /** All-Time Hall of Fame — aggregates stats across every tournament by team name */
@@ -61,8 +82,8 @@ export default function HallOfFame() {
             {rows.slice(0, 3).map((row, idx) => (
               <div key={row.name} className={`hof-podium-card rank-${idx + 1}`} style={{ animationDelay: `${idx * 0.1}s` }}>
                 <div className="hof-podium-medal">{RANK_MEDALS[idx]}</div>
-                <div className="team-avatar" style={{ width: 44, height: 44, fontSize: '1rem', margin: '0 auto 0.5rem' }}>
-                  {initials(row.name)}
+                <div className="team-avatar" style={{ width: 48, height: 48, fontSize: '1.5rem', margin: '0 auto 0.5rem', ...teamAvatarStyle(row.name) }}>
+                  {teamEmoji(row.name)}
                 </div>
                 <div className="hof-podium-name">{row.name}</div>
                 <div className="hof-podium-titles">

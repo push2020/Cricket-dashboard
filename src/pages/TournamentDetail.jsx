@@ -15,12 +15,92 @@ import {
 const STATUS_LABEL = { upcoming: 'Upcoming', active: 'Active', completed: 'Completed' };
 const STATUS_CLASS = { upcoming: 'badge-upcoming', active: 'badge-active', completed: 'badge-completed' };
 
-const RANK_MEDAL = ['🥇', '🥈', '🥉'];
-const RANK_CLASS = ['rank-1', 'rank-2', 'rank-3'];
+const RANK_MEDAL = ['🥇', '🥈', '🥉', '4️⃣'];
+const RANK_CLASS = ['rank-1', 'rank-2', 'rank-3', 'rank-4'];
 
-/** Returns the initials of a team name for the avatar circle */
-function initials(name) {
-  return name.split(' ').slice(0, 2).map((w) => w[0].toUpperCase()).join('');
+/**
+ * Returns a Set of team-ID strings that have mathematically guaranteed a
+ * top-qualifyCount finish in the group stage.
+ * A team qualifies when fewer than qualifyCount other teams can still earn
+ * strictly more points (current points + remaining matches × 2).
+ *
+ * @param {object[]} standings
+ * @param {object[]} scheduledGroupFixtures
+ * @param {number}   qualifyCount
+ * @returns {Set<string>}
+ */
+function computeQualifiedIds(standings, scheduledGroupFixtures, qualifyCount) {
+  const qualifiedIds = new Set();
+  if (standings.length < qualifyCount) return qualifiedIds;
+
+  standings.forEach((row) => {
+    const teamId = (row.team._id ?? row.team).toString();
+
+    let potentiallyAbove = 0;
+    standings.forEach((other) => {
+      const otherId = (other.team._id ?? other.team).toString();
+      if (otherId === teamId) return;
+
+      const remaining = scheduledGroupFixtures.filter((f) => {
+        const hId = (f.homeTeam?._id ?? f.homeTeam)?.toString();
+        const aId = (f.awayTeam?._id ?? f.awayTeam)?.toString();
+        return hId === otherId || aId === otherId;
+      }).length;
+
+      // Use >= so we only show Q when truly certain (ties on points are uncertain)
+      if (other.points + remaining * 2 >= row.points) potentiallyAbove++;
+    });
+
+    if (potentiallyAbove < qualifyCount) qualifiedIds.add(teamId);
+  });
+
+  return qualifiedIds;
+}
+
+/** Pool of emoji avatars — each team always gets the same one based on its name */
+const TEAM_EMOJIS = [
+  '🦁', '🐯', '🦊', '🦅', '🐉', '🦈', '⚡', '🔥',
+  '🌟', '🦋', '🌊', '🎯', '💎', '🌪️', '🐺', '🐆',
+  '🦏', '🦬', '🦩', '🦚', '🐊', '🦁', '🌈', '🎪',
+];
+
+/**
+ * Derives a stable hash from a team name (used for colour and emoji selection).
+ *
+ * @param {string} name
+ * @returns {number} non-negative integer
+ */
+function nameHash(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) {
+    h = ((h << 5) - h) + name.charCodeAt(i);
+    h |= 0;
+  }
+  return Math.abs(h);
+}
+
+/** Returns a hue (0–359) stable per team name, used for gradient colour */
+function nameToHue(name) { return nameHash(name) % 360; }
+
+/** Returns the emoji avatar for a team name — deterministic, no letters */
+function teamEmoji(name) {
+  return TEAM_EMOJIS[nameHash(name) % TEAM_EMOJIS.length];
+}
+
+/**
+ * Returns an inline style object that gives each team a unique gradient
+ * avatar background derived from its name.
+ *
+ * @param {string} name
+ * @returns {React.CSSProperties}
+ */
+function teamAvatarStyle(name) {
+  const h = nameToHue(name);
+  return {
+    background: `linear-gradient(135deg, hsl(${h},72%,58%), hsl(${(h + 35) % 360},65%,44%))`,
+    border: 'none',
+    boxShadow: `0 2px 8px hsla(${h},60%,45%,0.35)`,
+  };
 }
 
 /** Formats an NRR number with a leading + or – sign */
@@ -45,15 +125,23 @@ function scoreStr(innings) {
   return `${innings.runs}/${innings.wickets} (${innings.overs})`;
 }
 
+/** Returns the waiting label shown on a scheduled playoff fixture with TBD participants */
+function tbdLabel(type) {
+  if (type === 'qualifier2') return 'Awaiting Q1 & Eliminator results';
+  if (type === 'final')      return 'Awaiting Qualifier 2 result';
+  return 'Awaiting previous results';
+}
+
 /**
- * Single fixture card — handles null awayTeam for the Final before Eliminator is played.
+ * Single fixture card — handles null homeTeam/awayTeam for playoff matches
+ * whose participants aren't yet known.
  * Final fixtures navigate to /final/:id; others go to /match/:id.
  */
 function FixtureCard({ f, isPlayoff }) {
   const navigate = useNavigate();
   const homeTeamName = f.homeTeam?.name ?? 'TBD';
   const awayTeamName = f.awayTeam?.name ?? 'TBD';
-  const isAwayTbd = !f.awayTeam;
+  const isTbd    = !f.homeTeam || !f.awayTeam;
   const matchPath = f.type === 'final' ? `/final/${f._id}` : `/match/${f._id}`;
 
   return (
@@ -63,7 +151,7 @@ function FixtureCard({ f, isPlayoff }) {
           {homeTeamName}
         </span>
         <span className="vs-badge">vs</span>
-        <span className={`fixture-team-name${!isAwayTbd && f.winner?._id === f.awayTeam?._id ? ' winner' : ''}`}>
+        <span className={`fixture-team-name${!isTbd && f.winner?._id === f.awayTeam?._id ? ' winner' : ''}`}>
           {awayTeamName}
         </span>
       </div>
@@ -81,13 +169,13 @@ function FixtureCard({ f, isPlayoff }) {
 
       <div className="fixture-actions">
         <span className={`badge badge-${f.status}`}>{f.status}</span>
-        {f.status === 'scheduled' && !isAwayTbd && (
+        {f.status === 'scheduled' && !isTbd && (
           <button className="btn btn-primary btn-sm" onClick={() => navigate(matchPath)}>
             Enter Result
           </button>
         )}
-        {f.status === 'scheduled' && isAwayTbd && (
-          <span className="tbd-label">Awaiting Eliminator result</span>
+        {f.status === 'scheduled' && isTbd && (
+          <span className="tbd-label">{tbdLabel(f.type)}</span>
         )}
         {f.status === 'completed' && (
           <button className="btn btn-ghost btn-sm" onClick={() => navigate(matchPath)}>
@@ -100,67 +188,173 @@ function FixtureCard({ f, isPlayoff }) {
 }
 
 /**
- * Visual bracket showing Eliminator → Final flow.
+ * Compact match card used inside every bracket column.
+ * Shows each team as a row; highlights the winner; shows score when completed.
+ * When a team is null (TBD), the placeholder label is shown instead.
+ *
+ * @param {{ title, team1, team2, winnerId, isDone, isFinal, placeholder1, placeholder2 }} props
  */
-function BracketView({ eliminatorFixture: ef, finalFixture: ff }) {
-  const eliminatorWinner = ef?.status === 'completed' ? ef.winner?.name : null;
+function BracketMatchCard({ title, team1, team2, winnerId, isDone, isFinal, placeholder1, placeholder2 }) {
+  const t1Id  = team1?._id?.toString();
+  const t2Id  = team2?._id?.toString();
+  const wId   = winnerId?.toString?.() ?? winnerId;
+  const t1Won = isDone && !!wId && wId === t1Id;
+  const t2Won = isDone && !!wId && wId === t2Id;
+
+  function teamDot(name) {
+    if (!name) return null;
+    const h = nameToHue(name);
+    return (
+      <span style={{
+        width: 9, height: 9, borderRadius: '50%', flexShrink: 0, display: 'inline-block',
+        background: `hsl(${h},62%,55%)`,
+        boxShadow: `0 0 5px hsla(${h},58%,45%,0.45)`,
+      }} />
+    );
+  }
+
+  return (
+    <div className={`bkt-card${isFinal ? ' bkt-final' : ''}${isDone ? ' bkt-done' : ''}`}>
+      <div className="bkt-head">
+        <span className="bkt-title">{title}</span>
+        <span className={`bkt-dot ${isDone ? 'done' : 'pending'}`} />
+      </div>
+      <div className={`bkt-team${t1Won ? ' bkt-won' : ''}`}>
+        {teamDot(team1?.name)}
+        <span className="bkt-name">
+          {team1?.name ?? <span className="bkt-tbd">{placeholder1 ?? 'TBD'}</span>}
+        </span>
+        {t1Won && <span className="bkt-check">✓</span>}
+      </div>
+      <div className="bkt-divider" />
+      <div className={`bkt-team${t2Won ? ' bkt-won' : ''}`}>
+        {teamDot(team2?.name)}
+        <span className="bkt-name">
+          {team2?.name ?? <span className="bkt-tbd">{placeholder2 ?? 'TBD'}</span>}
+        </span>
+        {t2Won && <span className="bkt-check">✓</span>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Bracket for the 3-team Direct Final (1st vs 2nd, no elimination round).
+ *
+ * @param {{ finalFixture: object }} props
+ */
+function DirectFinalBracket({ finalFixture: ff }) {
+  const isDone = ff?.status === 'completed';
+  const winner = ff?.winner?.name;
+
+  return (
+    <div className="bkt-wrap">
+      <div className="bkt-wrap-label">Playoff Bracket · Direct Final</div>
+      <div className="bkt-direct-body">
+        <BracketMatchCard
+          title="Final"
+          team1={ff?.homeTeam}
+          team2={ff?.awayTeam}
+          winnerId={ff?.winner?._id}
+          isDone={isDone}
+          isFinal
+        />
+        {isDone && winner && (
+          <div className="bkt-champion">🏆 {winner}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Proper 3-column IPL playoff bracket:
+ *   Round 1: Q1 (1st vs 2nd) and Eliminator (3rd vs 4th)
+ *   Round 2: Q2 (Q1 loser vs Eliminator winner)
+ *   Final:   Q1 winner vs Q2 winner
+ *
+ * CSS bracket arms connect Round-1 outputs to Q2,
+ * and a direct path label shows Q1 winner bypasses Q2.
+ *
+ * @param {{ q1Fixture, eliminatorFixture, qualifier2Fixture, finalFixture }} props
+ */
+function IplBracket({ q1Fixture: q1, eliminatorFixture: ef, qualifier2Fixture: q2, finalFixture: ff }) {
   const finalWinner = ff?.status === 'completed' ? ff.winner?.name : null;
 
   return (
-    <div className="bracket-wrap">
-      <div style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--color-gold)', marginBottom: '1.25rem' }}>
-        Playoff Bracket
+    <div className="bkt-wrap">
+      <div className="bkt-wrap-label">Playoff Bracket · IPL Format</div>
+
+      {/* Round column headers */}
+      <div className="bkt-col-headers">
+        <div>Round 1</div>
+        <div />
+        <div>Round 2</div>
+        <div />
+        <div>Final</div>
       </div>
-      <div className="bracket-inner">
-        {/* Left column: 2nd and 3rd */}
-        <div className="bracket-col" style={{ gap: '0.6rem' }}>
-          <div className={`bracket-team-node rank-2`}>
-            <span className="bracket-rank-badge">🥈</span>
-            <span>{ef?.homeTeam?.name ?? '—'}</span>
-          </div>
-          <div style={{ textAlign: 'center', fontSize: '0.65rem', color: 'var(--text-muted)', padding: '0.15rem 0' }}>vs</div>
-          <div className={`bracket-team-node rank-3`}>
-            <span className="bracket-rank-badge">🥉</span>
-            <span>{ef?.awayTeam?.name ?? '—'}</span>
-          </div>
+
+      {/* Bracket body — 5-section flex row */}
+      <div className="bkt-body">
+
+        {/* ── Round 1: Q1 (top) + Eliminator (bottom) ── */}
+        <div className="bkt-r1">
+          <BracketMatchCard
+            title="Qualifier 1"
+            team1={q1?.homeTeam}    team2={q1?.awayTeam}
+            winnerId={q1?.winner?._id}
+            isDone={q1?.status === 'completed'}
+          />
+          <div className="bkt-r1-gap" />
+          <BracketMatchCard
+            title="Eliminator"
+            team1={ef?.homeTeam}    team2={ef?.awayTeam}
+            winnerId={ef?.winner?._id}
+            isDone={ef?.status === 'completed'}
+          />
         </div>
 
-        {/* Connector + Eliminator box */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', width: 24 }}>
-            <div style={{ width: '100%', height: 1, background: 'rgba(16,185,129,0.35)', marginTop: 22 }} />
-            <div style={{ width: 1, height: 36, background: 'rgba(16,185,129,0.25)', marginRight: 0 }} />
-            <div style={{ width: '100%', height: 1, background: 'rgba(16,185,129,0.35)', marginBottom: 22 }} />
-          </div>
-          <div className="bracket-match-box" style={{ marginLeft: 0 }}>
-            <div className="bracket-match-title">Eliminator</div>
-            <div className="bracket-match-teams" style={{ marginTop: 4 }}>
-              {eliminatorWinner
-                ? <span style={{ color: 'var(--color-green)', fontWeight: 700 }}>Winner: {eliminatorWinner}</span>
-                : <span>TBD</span>}
-            </div>
-          </div>
+        {/* ── Bracket arms: R1 → Q2 ── */}
+        <div className="bkt-arms">
+          <div className="bkt-arm-top" />
+          <div className="bkt-arm-bottom" />
         </div>
 
-        {/* Arrow to Final */}
-        <div className="bracket-arrow">→</div>
-
-        {/* Final box with 1st place joining */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'flex-start' }}>
-          <div className="bracket-team-node rank-1" style={{ marginBottom: '0.25rem' }}>
-            <span className="bracket-rank-badge">🥇</span>
-            <span>{ff?.homeTeam?.name ?? '—'}</span>
-            <span style={{ fontSize: '0.65rem', color: 'var(--color-gold)', marginLeft: 4 }}>Direct</span>
-          </div>
-          <div className="bracket-match-box final-box">
-            <div className="bracket-match-title">Final</div>
-            <div className="bracket-match-teams" style={{ marginTop: 4 }}>
-              {finalWinner
-                ? <span style={{ color: 'var(--color-gold)', fontWeight: 800 }}>🏆 {finalWinner}</span>
-                : <span>vs {eliminatorWinner ?? 'Elim. Winner'}</span>}
-            </div>
-          </div>
+        {/* ── Round 2: Q2 ── */}
+        <div className="bkt-r2">
+          <BracketMatchCard
+            title="Qualifier 2"
+            team1={q2?.homeTeam}    team2={q2?.awayTeam}
+            winnerId={q2?.winner?._id}
+            isDone={q2?.status === 'completed'}
+            placeholder1="Q1 Loser"
+            placeholder2="Elim Winner"
+          />
         </div>
+
+        {/* ── Arrow to Final ── */}
+        <div className="bkt-to-final">
+          <div className="bkt-to-final-line" />
+        </div>
+
+        {/* ── Final ── */}
+        <div className="bkt-final-col">
+          {/* Q1 winner direct path badge */}
+          <div className="bkt-direct-badge">Q1 Winner enters directly ↓</div>
+          <BracketMatchCard
+            title="🏆 Final"
+            team1={ff?.homeTeam}    team2={ff?.awayTeam}
+            winnerId={ff?.winner?._id}
+            isDone={ff?.status === 'completed'}
+            isFinal
+            placeholder1="Q1 Winner"
+            placeholder2="Q2 Winner"
+          />
+          {finalWinner && (
+            <div className="bkt-champion">🏆 {finalWinner}</div>
+          )}
+        </div>
+
       </div>
     </div>
   );
@@ -169,10 +363,10 @@ function BracketView({ eliminatorFixture: ef, finalFixture: ff }) {
 /** Renders the Teams tab */
 function TeamsTab({ tournament, teams, onTeamAdded, onTeamDeleted }) {
   const [newName, setNewName] = useState('');
-  const [adding, setAdding] = useState(false);
-  const [error, setError] = useState('');
+  const [adding,  setAdding]  = useState(false);
+  const [error,   setError]   = useState('');
+  const locked = tournament.fixturesGenerated;
 
-  /** Submits the add-team form */
   async function handleAdd(e) {
     e.preventDefault();
     const name = newName.trim();
@@ -190,7 +384,6 @@ function TeamsTab({ tournament, teams, onTeamAdded, onTeamDeleted }) {
     }
   }
 
-  /** Deletes a team after confirmation */
   async function handleDelete(id) {
     if (!confirm('Remove this team?')) return;
     try {
@@ -203,55 +396,88 @@ function TeamsTab({ tournament, teams, onTeamAdded, onTeamDeleted }) {
 
   return (
     <div>
+      {/* Header row */}
+      <div className="teams-header">
+        <div className="teams-header-left">
+          <span className="teams-count-badge">{teams.length}</span>
+          <span className="teams-header-label">
+            {teams.length === 1 ? 'Team' : 'Teams'}
+          </span>
+        </div>
+        {locked && (
+          <span className="teams-locked-pill">🔒 Locked</span>
+        )}
+      </div>
+
+      {/* Team list */}
       {teams.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">👥</div>
+        <div className="empty-state" style={{ padding: '3rem 1rem' }}>
+          <span className="empty-state-icon">👥</span>
           <div className="empty-state-title">No teams yet</div>
-          <div className="empty-state-desc">Add teams below to set up the tournament.</div>
+          <div className="empty-state-desc">Add your first team below.</div>
         </div>
       ) : (
         <div className="teams-list">
-          {teams.map((team, idx) => (
-            <div key={team._id} className="team-row" style={{ animationDelay: `${idx * 0.05}s` }}>
-              <div className="team-name">
-                <div className="team-avatar">{initials(team.name)}</div>
-                {team.name}
+          {teams.map((team, idx) => {
+            const avatarStyle = teamAvatarStyle(team.name);
+            return (
+              <div
+                key={team._id}
+                className={`team-row${locked ? ' team-row-locked' : ''}`}
+                style={{ animationDelay: `${idx * 0.04}s` }}
+              >
+                {/* Number badge */}
+                <span className="team-seq">#{idx + 1}</span>
+
+                {/* Avatar */}
+                <div className="team-avatar" style={avatarStyle}>
+                  {teamEmoji(team.name)}
+                </div>
+
+                {/* Name */}
+                <span className="team-name-text">{team.name}</span>
+
+                {/* Remove or lock icon */}
+                {!locked ? (
+                  <button
+                    className="team-remove-btn"
+                    onClick={() => handleDelete(team._id)}
+                    aria-label={`Remove ${team.name}`}
+                    title="Remove team"
+                  >
+                    ✕
+                  </button>
+                ) : (
+                  <span className="team-lock-icon" title="Locked">🔒</span>
+                )}
               </div>
-              {!tournament.fixturesGenerated && (
-                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(team._id)}>
-                  Remove
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {!tournament.fixturesGenerated && (
-        <>
-          {error && <div className="error-banner">{error}</div>}
+      {/* Add team form */}
+      {!locked && (
+        <div className="add-team-card">
+          {error && <div className="error-banner" style={{ marginBottom: '1rem' }}>{error}</div>}
           <form className="add-team-form" onSubmit={handleAdd}>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label" htmlFor="team-name-input">Add Team</label>
-              <input
-                id="team-name-input"
-                className="form-input"
-                placeholder="Enter team / player name"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-              />
-            </div>
-            <button type="submit" className="btn btn-primary" disabled={adding || !newName.trim()} style={{ marginTop: '1.4rem' }}>
-              {adding ? 'Adding…' : 'Add'}
+            <input
+              id="team-name-input"
+              className="form-input add-team-input"
+              placeholder="Enter team or player name…"
+              value={newName}
+              autoComplete="off"
+              onChange={(e) => setNewName(e.target.value)}
+            />
+            <button
+              type="submit"
+              className="btn btn-primary add-team-btn"
+              disabled={adding || !newName.trim()}
+            >
+              {adding ? '…' : '+ Add'}
             </button>
           </form>
-        </>
-      )}
-
-      {tournament.fixturesGenerated && (
-        <p className="text-muted" style={{ fontSize: '0.85rem', marginTop: '1rem' }}>
-          Teams are locked after fixtures are generated.
-        </p>
+        </div>
       )}
     </div>
   );
@@ -324,19 +550,32 @@ function FixturesTab({ tournament, fixtures, teams, onFixturesGenerated }) {
  * Playoffs tab — shown only when playoffGenerated is true.
  * Shows qualifier cards, bracket, then actual match entries.
  */
-function PlayoffsTab({ tournament, fixtures, standings, onPlayoffsGenerated }) {
+function PlayoffsTab({ tournament, fixtures, standings, teamsCount, onPlayoffsGenerated }) {
   const [generatingPlayoffs, setGeneratingPlayoffs] = useState(false);
   const [error, setError] = useState('');
 
-  const groupFixtures = fixtures.filter((f) => (f.type ?? 'group') === 'group');
-  const eliminatorFixture = fixtures.find((f) => f.type === 'eliminator') ?? null;
-  const finalFixture = fixtures.find((f) => f.type === 'final') ?? null;
+  const groupFixtures      = fixtures.filter((f) => (f.type ?? 'group') === 'group');
+  const qualifier1Fixture  = fixtures.find((f) => f.type === 'qualifier1')  ?? null;
+  const eliminatorFixture  = fixtures.find((f) => f.type === 'eliminator')  ?? null;
+  const qualifier2Fixture  = fixtures.find((f) => f.type === 'qualifier2')  ?? null;
+  const finalFixture       = fixtures.find((f) => f.type === 'final')       ?? null;
+
+  const isIpl      = teamsCount >= 4;
+  const isDirect   = teamsCount === 3;
+  // How many teams qualify: 4 for IPL, 2 for direct final, 0 otherwise
+  const qualifyCount = isIpl ? 4 : isDirect ? 2 : 0;
+
+  const rankLabels = isIpl
+    ? ['1st — Qualifier 1', '2nd — Qualifier 1', '3rd — Eliminator', '4th — Eliminator']
+    : ['1st — Direct Final', '2nd — Direct Final'];
+
+  const rankLabelsFinal = isIpl
+    ? ['1st Place', '2nd Place', '3rd Place', '4th Place']
+    : ['1st Place', '2nd Place'];
 
   const allGroupDone = groupFixtures.length > 0 && groupFixtures.every(
     (f) => f.status === 'completed' || f.status === 'abandoned'
   );
-
-  const canGenerate = tournament.fixturesGenerated && !tournament.playoffGenerated && allGroupDone;
 
   /** Generates playoff fixtures */
   async function handleGeneratePlayoffs() {
@@ -375,16 +614,16 @@ function PlayoffsTab({ tournament, fixtures, standings, onPlayoffsGenerated }) {
           </div>
         )}
 
-        {allGroupDone && standings.length >= 3 && (
+        {allGroupDone && standings.length >= qualifyCount && (
           <div>
             {/* Qualifying teams preview */}
             <div style={{ marginBottom: '2rem' }}>
               <div className="playoff-section-label" style={{ marginBottom: '1.25rem' }}>🏆 Qualifiers</div>
               <div className="qualifiers-section">
-                {standings.slice(0, 3).map((row, idx) => (
+                {standings.slice(0, qualifyCount).map((row, idx) => (
                   <div key={row.team._id} className={`qualifier-card ${RANK_CLASS[idx]}`} style={{ animationDelay: `${idx * 0.12}s` }}>
                     <span className="qualifier-medal">{RANK_MEDAL[idx]}</span>
-                    <div className="qualifier-rank">{idx === 0 ? '1st — Direct Final' : idx === 1 ? '2nd — Eliminator' : '3rd — Eliminator'}</div>
+                    <div className="qualifier-rank">{rankLabels[idx]}</div>
                     <div className="qualifier-name">{row.team.name}</div>
                     <div className="qualifier-stats">{row.points} pts · NRR {formatNrr(row.nrr)}</div>
                   </div>
@@ -400,7 +639,9 @@ function PlayoffsTab({ tournament, fixtures, standings, onPlayoffsGenerated }) {
                   Group Stage Complete!
                 </p>
                 <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.92rem' }}>
-                  1st place enters the Final directly. 2nd vs 3rd play the Eliminator.
+                  {isDirect
+                    ? 'Top 2 teams qualify — they play directly in the Final.'
+                    : 'Top 4 qualify. 1st vs 2nd in Q1; 3rd vs 4th in the Eliminator. Winners meet in Q2 and the Final.'}
                 </p>
                 <button className="btn btn-gold btn-lg" onClick={handleGeneratePlayoffs} disabled={generatingPlayoffs}>
                   {generatingPlayoffs ? 'Generating…' : '🚀 Generate Playoffs'}
@@ -413,18 +654,18 @@ function PlayoffsTab({ tournament, fixtures, standings, onPlayoffsGenerated }) {
     );
   }
 
-  /* Playoffs are generated — show full bracket + matches */
+  /* Playoffs are generated — show bracket + matches */
   return (
     <div>
-      {/* Top 3 qualifier cards */}
-      {standings.length >= 3 && (
+      {/* Qualifier cards */}
+      {standings.length >= qualifyCount && (
         <div style={{ marginBottom: '2rem' }}>
           <div className="playoff-section-label" style={{ marginBottom: '1.25rem' }}>🏆 Qualifiers</div>
           <div className="qualifiers-section">
-            {standings.slice(0, 3).map((row, idx) => (
+            {standings.slice(0, qualifyCount).map((row, idx) => (
               <div key={row.team._id} className={`qualifier-card ${RANK_CLASS[idx]}`} style={{ animationDelay: `${idx * 0.1}s` }}>
                 <span className="qualifier-medal">{RANK_MEDAL[idx]}</span>
-                <div className="qualifier-rank">{idx === 0 ? '1st Place' : idx === 1 ? '2nd Place' : '3rd Place'}</div>
+                <div className="qualifier-rank">{rankLabelsFinal[idx]}</div>
                 <div className="qualifier-name">{row.team.name}</div>
                 <div className="qualifier-stats">{row.points} pts · NRR {formatNrr(row.nrr)}</div>
               </div>
@@ -433,23 +674,48 @@ function PlayoffsTab({ tournament, fixtures, standings, onPlayoffsGenerated }) {
         </div>
       )}
 
-      {/* Bracket visualization */}
-      <BracketView eliminatorFixture={eliminatorFixture} finalFixture={finalFixture} />
+      {/* Bracket */}
+      {isDirect
+        ? <DirectFinalBracket finalFixture={finalFixture} />
+        : <IplBracket q1Fixture={qualifier1Fixture} eliminatorFixture={eliminatorFixture} qualifier2Fixture={qualifier2Fixture} finalFixture={finalFixture} />}
 
-      {/* Eliminator match */}
-      {eliminatorFixture && (
-        <div className="round-group">
-          <div className="round-label playoff-round-label">Eliminator · 2nd vs 3rd</div>
-          <div className="fixtures-list">
-            <FixtureCard f={eliminatorFixture} isPlayoff />
+      {/* Match cards — IPL format */}
+      {isIpl && (
+        <>
+          <div className="round-group" style={{ marginTop: '2rem' }}>
+            <div className="round-label playoff-round-label">Qualifier 1 · 1st vs 2nd</div>
+            <div className="fixtures-list">
+              {qualifier1Fixture && <FixtureCard f={qualifier1Fixture} isPlayoff />}
+            </div>
           </div>
-        </div>
+
+          <div className="round-group" style={{ marginTop: '1.5rem' }}>
+            <div className="round-label playoff-round-label">Eliminator · 3rd vs 4th</div>
+            <div className="fixtures-list">
+              {eliminatorFixture && <FixtureCard f={eliminatorFixture} isPlayoff />}
+            </div>
+          </div>
+
+          <div className="round-group" style={{ marginTop: '1.5rem' }}>
+            <div className="round-label playoff-round-label">Qualifier 2 · Q1 Loser vs Eliminator Winner</div>
+            <div className="fixtures-list">
+              {qualifier2Fixture && <FixtureCard f={qualifier2Fixture} isPlayoff />}
+            </div>
+          </div>
+
+          <div className="round-group" style={{ marginTop: '1.5rem' }}>
+            <div className="round-label playoff-round-label">Final · Q1 Winner vs Q2 Winner</div>
+            <div className="fixtures-list">
+              {finalFixture && <FixtureCard f={finalFixture} isPlayoff />}
+            </div>
+          </div>
+        </>
       )}
 
-      {/* Final match */}
-      {finalFixture && (
-        <div className="round-group" style={{ marginTop: '1.5rem' }}>
-          <div className="round-label playoff-round-label">Final · 1st vs Winner of Eliminator</div>
+      {/* Match cards — Direct Final (3 teams) */}
+      {isDirect && finalFixture && (
+        <div className="round-group" style={{ marginTop: '2rem' }}>
+          <div className="round-label playoff-round-label">Final · 1st vs 2nd</div>
           <div className="fixtures-list">
             <FixtureCard f={finalFixture} isPlayoff />
           </div>
@@ -459,8 +725,8 @@ function PlayoffsTab({ tournament, fixtures, standings, onPlayoffsGenerated }) {
   );
 }
 
-/** Renders the Standings tab */
-function StandingsTab({ standings, tournament, loading }) {
+/** Renders the Standings tab with live Q (qualified) badges */
+function StandingsTab({ standings, tournament, fixtures, teamsCount, loading }) {
   if (loading) {
     return <div className="loading-wrap"><div className="spinner" />Calculating standings…</div>;
   }
@@ -474,39 +740,103 @@ function StandingsTab({ standings, tournament, loading }) {
     );
   }
 
-  const showQualifiers = standings.length >= 3 && !tournament?.playoffGenerated;
+  // qualifyCount: top 4 for IPL format, top 2 for 3-team direct final
+  const qualifyCount = teamsCount >= 4 ? 4 : teamsCount === 3 ? 2 : 0;
+  const hasPlayoffs  = teamsCount >= 3;
+
+  // Compute which teams have mathematically qualified (only before playoffs are generated)
+  const scheduledGroupFixtures = !tournament?.playoffGenerated && fixtures
+    ? fixtures.filter((f) => f.status === 'scheduled' && (f.type ?? 'group') === 'group')
+    : [];
+  // After playoffs are generated every top-N team has definitively qualified.
+  // Before that, only show Q when a spot is mathematically clinched.
+  const qualifiedIds = hasPlayoffs
+    ? tournament?.playoffGenerated
+      ? new Set(standings.slice(0, qualifyCount).map((r) => (r.team._id ?? r.team).toString()))
+      : computeQualifiedIds(standings, scheduledGroupFixtures, qualifyCount)
+    : new Set();
 
   return (
     <div>
-      {showQualifiers && (
-        <p className="qualifier-note">
-          Top 3 teams will qualify for playoffs after all group matches are played.
-        </p>
-      )}
+      {/* Header bar */}
+      <div className="standings-header">
+        <div className="standings-title">Points Table</div>
+        {hasPlayoffs && (
+          <div className="standings-qualify-pill">
+            Top {qualifyCount} qualify
+            {qualifiedIds.size > 0 && <span className="standings-qualify-count">{qualifiedIds.size} confirmed</span>}
+          </div>
+        )}
+      </div>
+
       <div className="standings-table-wrap">
         <table className="standings-table">
           <thead>
             <tr>
-              <th>#</th><th>Team</th><th>P</th><th>W</th><th>L</th><th>T</th>
-              <th className="col-pts">Pts</th><th>NRR</th><th>RS</th><th>RC</th>
+              <th className="col-pos">#</th>
+              <th className="col-team">Team</th>
+              <th title="Matches played">M</th>
+              <th title="Wins" className="col-won-h">W</th>
+              <th title="Losses" className="col-lost-h">L</th>
+              <th title="Ties">T</th>
+              <th className="col-pts" title="Points">Pts</th>
+              <th title="Net Run Rate">NRR</th>
+              <th title="Runs scored" className="col-runs-h">RS</th>
+              <th title="Runs conceded" className="col-runs-h">RC</th>
             </tr>
           </thead>
           <tbody>
-            {standings.map((row, idx) => (
-              <tr key={row.team._id} className={idx < 3 ? 'qualifier-row' : ''}>
-                <td className="col-pos">
-                  <span className={`position-indicator${idx < 3 ? ' top' : ''}`}>{idx + 1}</span>
-                </td>
-                <td className="col-team">{row.team.name}</td>
-                <td>{row.played}</td><td>{row.won}</td><td>{row.lost}</td><td>{row.tied}</td>
-                <td className="col-pts">{row.points}</td>
-                <td className={`col-nrr ${row.nrr >= 0 ? 'positive' : 'negative'}`}>{formatNrr(row.nrr)}</td>
-                <td>{row.runsScored}</td><td>{row.runsConceded}</td>
-              </tr>
-            ))}
+            {standings.map((row, idx) => {
+              const teamId         = (row.team._id ?? row.team).toString();
+              const isQual         = qualifiedIds.has(teamId);
+              const inTopN         = idx < qualifyCount;
+              const isCutoff       = inTopN && idx === qualifyCount - 1;
+              const rankPos        = idx + 1;
+              const rowClass       = [
+                inTopN ? 'qualifier-row' : 'non-qualifier-row',
+                isCutoff ? 'qualifier-cutoff' : '',
+              ].filter(Boolean).join(' ');
+
+              return (
+                <tr key={row.team._id} className={rowClass}>
+                  <td className="col-pos">
+                    <span className={`position-indicator pos-${Math.min(rankPos, 5)}`}>{rankPos}</span>
+                  </td>
+                  <td className="col-team">
+                    <div className="standings-team-cell">
+                      <div className="standings-avatar" style={teamAvatarStyle(row.team.name)}>🏏</div>
+                      <div className="standings-team-info">
+                        <span className="standings-team-name">{row.team.name}</span>
+                        {isQual && <span className="qualify-badge">Q</span>}
+                      </div>
+                    </div>
+                  </td>
+                  <td>{row.played}</td>
+                  <td className="col-won">{row.won}</td>
+                  <td className="col-lost">{row.lost}</td>
+                  <td className="col-tied">{row.tied}</td>
+                  <td className="col-pts">
+                    <span className="pts-badge">{row.points}</span>
+                  </td>
+                  <td className={`col-nrr ${row.nrr >= 0 ? 'positive' : 'negative'}`}>
+                    <span className="nrr-arrow">{row.nrr >= 0 ? '▲' : '▼'}</span>
+                    {Math.abs(row.nrr).toFixed(3)}
+                  </td>
+                  <td className="col-runs">{row.runsScored}</td>
+                  <td className="col-runs">{row.runsConceded}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
+
+      {hasPlayoffs && !tournament?.playoffGenerated && standings.length >= qualifyCount && (
+        <p className="qualifier-note" style={{ marginTop: '0.75rem' }}>
+          ✦ Top {qualifyCount} teams qualify for playoffs.
+          {qualifiedIds.size > 0 && ' Q = mathematically confirmed.'}
+        </p>
+      )}
     </div>
   );
 }
@@ -660,8 +990,11 @@ export default function TournamentDetail() {
     );
   }
 
-  const totalMatches = fixtures.length;
+  const totalMatches     = fixtures.length;
   const completedMatches = fixtures.filter((f) => f.status === 'completed').length;
+  const allPlayed        = totalMatches > 0 && completedMatches === totalMatches;
+  const statusLabel      = allPlayed ? 'Completed' : totalMatches > 0 ? 'Ongoing' : STATUS_LABEL[tournament.status];
+  const statusClass      = allPlayed ? 'badge-completed' : totalMatches > 0 ? 'badge-active' : STATUS_CLASS[tournament.status];
 
   /* Tabs: always show Teams, Fixtures, Standings.
      Show Playoffs tab when fixtures are generated (it handles its own empty state). */
@@ -686,7 +1019,7 @@ export default function TournamentDetail() {
             <h1 className="tournament-hero-title">{tournament.name}</h1>
             {tournament.description && <p className="tournament-hero-desc">{tournament.description}</p>}
           </div>
-          <span className={`badge ${STATUS_CLASS[tournament.status]}`}>{STATUS_LABEL[tournament.status]}</span>
+          <span className={`badge ${statusClass}`}>{statusLabel}</span>
         </div>
 
         <div className="tournament-hero-stats">
@@ -738,11 +1071,15 @@ export default function TournamentDetail() {
           {activeTab === 'playoffs' && (
             <PlayoffsTab
               tournament={tournament} fixtures={fixtures} standings={standings}
+              teamsCount={teams.length}
               onPlayoffsGenerated={handlePlayoffsGenerated}
             />
           )}
           {activeTab === 'standings' && (
-            <StandingsTab standings={standings} tournament={tournament} loading={standingsLoading} />
+            <StandingsTab
+              standings={standings} tournament={tournament} loading={standingsLoading}
+              fixtures={fixtures} teamsCount={teams.length}
+            />
           )}
           {activeTab === 'highlights' && (
             <HighlightsTab tournamentId={id} />

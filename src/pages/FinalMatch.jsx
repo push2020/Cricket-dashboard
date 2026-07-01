@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getFixture, enterResult } from '../api';
 
-const INITIAL_INNINGS = { runs: '', wickets: '' };
+const INITIAL_INNINGS = { runs: '', wickets: '', overs: '' };
 
 /** Returns true if the home team batted first based on toss */
 function homeTeamBattedFirst(tossWinnerId, tossDecision, homeTeamId) {
@@ -31,8 +31,8 @@ function buildResultNote(firstInnTeam, secondInnTeam, firstInn, secondInn, winne
   return '';
 }
 
-/** Single innings input: runs + wickets only */
-function InningsInput({ label, teamName, value, onChange }) {
+/** Single innings input: runs, wickets, and actual overs played */
+function InningsInput({ label, teamName, value, onChange, maxOvers }) {
   function handleField(field, raw) {
     onChange({ ...value, [field]: raw });
   }
@@ -58,6 +58,14 @@ function InningsInput({ label, teamName, value, onChange }) {
               className="form-input" type="number" min="0" max="10" placeholder="0"
               value={value.wickets}
               onChange={(e) => handleField('wickets', e.target.value)}
+            />
+          </div>
+          <div>
+            <div className="innings-stat-label">Overs</div>
+            <input
+              className="form-input" type="number" min="0" step="0.1" placeholder={maxOvers ?? '0'}
+              value={value.overs}
+              onChange={(e) => handleField('overs', e.target.value)}
             />
           </div>
         </div>
@@ -94,8 +102,8 @@ export default function FinalMatch() {
         }
         setFixture(data);
         if (data.status !== 'scheduled') {
-          setHomeInn({ runs: String(data.homeInnings?.runs ?? ''), wickets: String(data.homeInnings?.wickets ?? '') });
-          setAwayInn({ runs: String(data.awayInnings?.runs ?? ''), wickets: String(data.awayInnings?.wickets ?? '') });
+          setHomeInn({ runs: String(data.homeInnings?.runs ?? ''), wickets: String(data.homeInnings?.wickets ?? ''), overs: String(data.homeInnings?.overs ?? '') });
+          setAwayInn({ runs: String(data.awayInnings?.runs ?? ''), wickets: String(data.awayInnings?.wickets ?? ''), overs: String(data.awayInnings?.overs ?? '') });
           setWinnerId(data.winner?._id ?? '');
           setTossWinnerId(data.tossWinner?._id ?? '');
           setTossDecision(data.tossDecision ?? 'bat');
@@ -141,11 +149,15 @@ export default function FinalMatch() {
       ? 'Match abandoned'
       : buildResultNote(firstInnTeam, secondInnTeam, firstInn, secondInn, winnerId);
 
+    // Use actual overs played; fall back to tournament overs when left blank
+    const homeOvers = homeInn.overs !== '' ? parseFloat(homeInn.overs) : tournamentOvers;
+    const awayOvers = awayInn.overs !== '' ? parseFloat(awayInn.overs) : tournamentOvers;
+
     try {
       setSubmitting(true);
       await enterResult(id, {
-        homeInnings: { runs: Number(homeInn.runs) || 0, wickets: Number(homeInn.wickets) || 0, overs: tournamentOvers },
-        awayInnings: { runs: Number(awayInn.runs) || 0, wickets: Number(awayInn.wickets) || 0, overs: tournamentOvers },
+        homeInnings: { runs: Number(homeInn.runs) || 0, wickets: Number(homeInn.wickets) || 0, overs: homeOvers },
+        awayInnings: { runs: Number(awayInn.runs) || 0, wickets: Number(awayInn.wickets) || 0, overs: awayOvers },
         winner: status === 'completed' ? winnerId || null : null,
         resultNote, tossWinner: tossWinnerId || null, tossDecision: tossDecision || null, matchDate: null, status,
       });
@@ -175,11 +187,11 @@ export default function FinalMatch() {
     );
   }
 
-  if (fixture && !fixture.awayTeam) {
+  if (fixture && (!fixture.homeTeam || !fixture.awayTeam)) {
     return (
       <div className="container page">
         <button className="btn btn-ghost btn-sm" onClick={() => navigate(-1)} style={{ marginBottom: '1.5rem' }}>← Back</button>
-        <div className="error-banner">The Final cannot be played yet — complete the Eliminator first.</div>
+        <div className="error-banner">The Final cannot be played yet — complete all preceding playoff matches first.</div>
       </div>
     );
   }
@@ -242,8 +254,8 @@ export default function FinalMatch() {
         {status === 'completed' && (
           <>
             <div className="match-entry-layout" style={{ marginBottom: '1.5rem' }}>
-              <InningsInput label="1st Innings" teamName={firstInnTeam.name}  value={firstInn}  onChange={setFirstInn} />
-              <InningsInput label="2nd Innings" teamName={secondInnTeam.name} value={secondInn} onChange={setSecondInn} />
+              <InningsInput label="1st Innings" teamName={firstInnTeam.name}  value={firstInn}  onChange={setFirstInn}  maxOvers={fixture.tournamentId?.overs} />
+              <InningsInput label="2nd Innings" teamName={secondInnTeam.name} value={secondInn} onChange={setSecondInn} maxOvers={fixture.tournamentId?.overs} />
             </div>
 
             <div className="card" style={{ marginBottom: '1.5rem' }}>
