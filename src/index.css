@@ -816,6 +816,10 @@ textarea {
   color: var(--text-secondary);
   margin-bottom: 1rem;
   line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .tournament-meta {
   display: flex;
@@ -2110,7 +2114,7 @@ textarea {
   width: 192px;
 }
 .bkt-col-headers > *:nth-child(4) {
-  width: 56px;
+  width: 48px;
 }
 .bkt-col-headers > *:nth-child(5) {
   flex: 1;
@@ -2256,98 +2260,56 @@ textarea {
   gap: 0;
   min-width: 680px;
 }
-.bkt-r1 {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-.bkt-r1-gap {
-  flex: 1;
-  min-height: 52px;
+/* Round 1 column */
+.bkt-r1          { display: flex; flex-direction: column; gap: 0; }
+.bkt-r1-q1-slot  { display: flex; flex-direction: column; }
+.bkt-r1-gap      { flex: 1; min-height: 44px; }
+
+/* "Winner → Final directly" note sits below Q1 card */
+.bkt-q1-direct-note {
+  font-size: 0.6rem; font-weight: 800; letter-spacing: 0.05em;
+  color: var(--color-gold); text-align: right;
+  padding: 0.28rem 0.5rem 0;
+  white-space: nowrap;
 }
 
-/* Bracket arms connecting R1 → Q2 */
-.bkt-arms {
-  display: flex;
-  flex-direction: column;
-  width: 40px;
-  align-self: stretch;
-}
+/* Bracket arms: Q1-loser + Elim-winner → Q2 */
+.bkt-arms        { display: flex; flex-direction: column; width: 40px; align-self: stretch; }
 .bkt-arm-top {
   flex: 1;
-  border-right: 2.5px solid rgba(22, 163, 74, 0.32);
-  border-bottom: 2.5px solid rgba(22, 163, 74, 0.32);
+  border-right: 2px solid rgba(22,163,74,0.35);
+  border-bottom: 2px solid rgba(22,163,74,0.35);
   border-bottom-right-radius: 8px;
 }
 .bkt-arm-bottom {
   flex: 1;
-  border-right: 2.5px solid rgba(22, 163, 74, 0.32);
-  border-top: 2.5px solid rgba(22, 163, 74, 0.32);
+  border-right: 2px solid rgba(22,163,74,0.35);
+  border-top: 2px solid rgba(22,163,74,0.35);
   border-top-right-radius: 8px;
 }
 
-/* Q2 centered */
-.bkt-r2 {
-  display: flex;
-  align-items: center;
-  align-self: stretch;
-}
+/* Q2 — vertically centered relative to the whole bracket height */
+.bkt-r2 { display: flex; align-items: center; align-self: stretch; }
 
-/* Connector Q2 → Final */
+/* Arrow Q2 → Final */
 .bkt-to-final {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  align-self: stretch;
+  display: flex; align-items: center; justify-content: center;
+  width: 48px; align-self: stretch;
 }
 .bkt-to-final-line {
-  width: 100%;
-  height: 2.5px;
-  background: linear-gradient(
-    90deg,
-    rgba(217, 119, 6, 0.2),
-    rgba(217, 119, 6, 0.55)
-  );
-  border-radius: 2px;
-  position: relative;
+  width: 100%; height: 2px;
+  background: linear-gradient(90deg, rgba(217,119,6,0.25), rgba(217,119,6,0.6));
+  border-radius: 2px; position: relative;
 }
 .bkt-to-final-line::after {
-  content: "▶";
-  position: absolute;
-  right: -8px;
-  top: -7px;
-  font-size: 0.9rem;
-  color: rgba(217, 119, 6, 0.65);
-  line-height: 1;
+  content: '▶'; position: absolute; right: -7px; top: -8px;
+  font-size: 0.85rem; color: rgba(217,119,6,0.7); line-height: 1;
 }
 
-/* Final column */
+/* Final column — card centered; badge is gone from here */
 .bkt-final-col {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  align-self: stretch;
-  gap: 0.65rem;
-}
-
-/* "Q1 winner enters directly" badge */
-.bkt-direct-badge {
-  font-size: 0.6rem;
-  font-weight: 800;
-  color: var(--color-gold);
-  background: linear-gradient(
-    135deg,
-    rgba(217, 119, 6, 0.1),
-    rgba(217, 119, 6, 0.05)
-  );
-  border: 1px solid rgba(217, 119, 6, 0.28);
-  border-radius: 20px;
-  padding: 0.22rem 0.75rem;
-  white-space: nowrap;
-  letter-spacing: 0.04em;
-  box-shadow: 0 1px 4px rgba(217, 119, 6, 0.1);
+  display: flex; flex-direction: column; align-items: flex-start;
+  justify-content: center; align-self: stretch; gap: 0.55rem;
 }
 
 /* Champion banner */

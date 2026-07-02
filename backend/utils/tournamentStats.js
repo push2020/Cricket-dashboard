@@ -6,9 +6,8 @@
  * @returns {object} Full stats object
  */
 function computeTournamentStats(fixtures) {
-  const completed = fixtures.filter(
-    (f) => f.status === 'completed' && (f.type ?? 'group') === 'group'
-  );
+  // Include ALL completed matches — group stage, playoffs and finals
+  const completed = fixtures.filter((f) => f.status === 'completed');
 
   return {
     biggestWin:   findBiggestWin(completed),

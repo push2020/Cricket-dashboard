@@ -302,12 +302,16 @@ function IplBracket({ q1Fixture: q1, eliminatorFixture: ef, qualifier2Fixture: q
 
         {/* ── Round 1: Q1 (top) + Eliminator (bottom) ── */}
         <div className="bkt-r1">
-          <BracketMatchCard
-            title="Qualifier 1"
-            team1={q1?.homeTeam}    team2={q1?.awayTeam}
-            winnerId={q1?.winner?._id}
-            isDone={q1?.status === 'completed'}
-          />
+          {/* Q1 slot — note below card explains the direct-to-Final path */}
+          <div className="bkt-r1-q1-slot">
+            <BracketMatchCard
+              title="Qualifier 1"
+              team1={q1?.homeTeam}    team2={q1?.awayTeam}
+              winnerId={q1?.winner?._id}
+              isDone={q1?.status === 'completed'}
+            />
+            <div className="bkt-q1-direct-note">Winner → Final directly</div>
+          </div>
           <div className="bkt-r1-gap" />
           <BracketMatchCard
             title="Eliminator"
@@ -317,7 +321,7 @@ function IplBracket({ q1Fixture: q1, eliminatorFixture: ef, qualifier2Fixture: q
           />
         </div>
 
-        {/* ── Bracket arms: R1 → Q2 ── */}
+        {/* ── Bracket arms: R1 loser + Elim winner → Q2 ── */}
         <div className="bkt-arms">
           <div className="bkt-arm-top" />
           <div className="bkt-arm-bottom" />
@@ -335,15 +339,13 @@ function IplBracket({ q1Fixture: q1, eliminatorFixture: ef, qualifier2Fixture: q
           />
         </div>
 
-        {/* ── Arrow to Final ── */}
+        {/* ── Arrow: Q2 winner → Final ── */}
         <div className="bkt-to-final">
           <div className="bkt-to-final-line" />
         </div>
 
-        {/* ── Final ── */}
+        {/* ── Final — card only, aligned with Q2 by shared centering ── */}
         <div className="bkt-final-col">
-          {/* Q1 winner direct path badge */}
-          <div className="bkt-direct-badge">Q1 Winner enters directly ↓</div>
           <BracketMatchCard
             title="🏆 Final"
             team1={ff?.homeTeam}    team2={ff?.awayTeam}

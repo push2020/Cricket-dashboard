@@ -321,10 +321,10 @@ router.get('/:id/pool-standings', async (req, res) => {
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-// GET /api/tournaments/:id/stats
+// GET /api/tournaments/:id/stats  (all match types — group + playoffs)
 router.get('/:id/stats', async (req, res) => {
   try {
-    const fixtures = await populateFixtures(Fixture.find({ tournamentId: req.params.id, type: 'group' }));
+    const fixtures = await populateFixtures(Fixture.find({ tournamentId: req.params.id }));
     res.json(computeTournamentStats(fixtures));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
