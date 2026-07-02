@@ -120,10 +120,72 @@ export default function Celebration() {
     load();
   }, [tournamentId]);
 
-  /** Opens the browser print dialog showing only the certificate */
+  /** Opens a fresh print window containing only the certificate — avoids CSS conflicts */
   function handlePrint() {
-    setShowCert(true);
-    setTimeout(() => window.print(), 300);
+    if (!winner || !tournament) return;
+    const year = new Date().getFullYear();
+
+    const styles = `
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { background: #fff; display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: Georgia, serif; }
+      .certificate { background: #fdfaf0; color: #1a1200; border-radius: 8px; max-width: 640px; width: 100%; }
+      .cert-outer  { border: 8px solid #c9973a; }
+      .cert-inner  { border: 2px solid #e6b96a; margin: 6px; padding: 2.5rem 3rem; text-align: center; background: linear-gradient(180deg,#fffef5,#fdfaf0); position: relative; }
+      .cert-corner { position: absolute; font-size: 1.6rem; color: #c9973a; opacity: 0.6; }
+      .cert-corner.tl { top:8px;  left:10px;  }
+      .cert-corner.tr { top:8px;  right:10px; }
+      .cert-corner.bl { bottom:8px; left:10px;  }
+      .cert-corner.br { bottom:8px; right:10px; }
+      .cert-logo     { font-size:3rem; display:block; margin-bottom:0.25rem; }
+      .cert-org-name { font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.2em; color:#8b6914; margin-bottom:1.5rem; }
+      .cert-title    { font-size:1.05rem; font-weight:700; text-transform:uppercase; letter-spacing:0.18em; color:#6b4c00; margin-bottom:0.4rem; }
+      .cert-divider  { width:80px; height:2px; background:linear-gradient(90deg,transparent,#c9973a,transparent); margin:0.75rem auto; }
+      .cert-certifies{ font-size:0.85rem; color:#555; margin-bottom:0.25rem; font-style:italic; }
+      .cert-team     { font-size:1.8rem; font-weight:900; color:#2c1a00; letter-spacing:-0.02em; margin:0.3rem 0; }
+      .cert-for      { font-size:0.85rem; color:#555; margin-bottom:0.25rem; font-style:italic; }
+      .cert-tournament{ font-size:1.15rem; font-weight:800; color:#8b4500; margin-bottom:0.25rem; }
+      .cert-details  { font-size:0.75rem; color:#888; margin-bottom:1.25rem; }
+      .cert-footer   { display:flex; align-items:center; justify-content:center; gap:1rem; margin-top:1rem; }
+      .cert-seal     { font-size:2rem; }
+      .cert-year     { font-size:0.75rem; color:#888; font-style:italic; }
+      @media print { body { min-height: unset; } }
+    `;
+
+    const html = `
+      <div class="certificate">
+        <div class="cert-outer"><div class="cert-inner">
+          <span class="cert-corner tl">❧</span>
+          <span class="cert-corner tr">❧</span>
+          <span class="cert-corner bl">❧</span>
+          <span class="cert-corner br">❧</span>
+          <span class="cert-logo">🏏</span>
+          <div class="cert-org-name">RealCricket</div>
+          <div class="cert-title">Certificate of Championship</div>
+          <div class="cert-divider"></div>
+          <div class="cert-certifies">This certifies that</div>
+          <div class="cert-team">${winner.name}</div>
+          <div class="cert-for">are the Champions of</div>
+          <div class="cert-tournament">${tournament.name}</div>
+          <div class="cert-details">${tournament.overs}-over format &middot; ${year}</div>
+          <div class="cert-divider"></div>
+          <div class="cert-footer">
+            <div class="cert-seal">🏆</div>
+            <div class="cert-year">Awarded ${year}</div>
+          </div>
+        </div></div>
+      </div>
+    `;
+
+    const win = window.open('', '_blank');
+    if (!win) { alert('Allow pop-ups for this site to print the certificate.'); return; }
+    win.document.write(`<!DOCTYPE html><html><head>
+      <meta charset="UTF-8">
+      <title>Certificate of Championship — ${winner.name}</title>
+      <style>${styles}</style>
+    </head><body>${html}
+      <script>window.onload = function () { window.print(); };<\/script>
+    </body></html>`);
+    win.document.close();
   }
 
   if (loading) {
@@ -193,10 +255,7 @@ export default function Celebration() {
         </div>
       </div>
 
-      {/* Print-only certificate */}
-      <div className="print-only" style={{ display: 'none' }}>
-        <Certificate tournament={tournament} winnerName={winner.name} />
-      </div>
+      {/* Certificate is printed via a fresh window — no print-only div needed */}
     </>
   );
 }

@@ -2889,15 +2889,53 @@ textarea {
   color: var(--text-primary);
 }
 .stat-card-streak-count {
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--color-green);
-  background: var(--color-green-faint);
-  border: 1px solid rgba(22, 163, 74, 0.2);
-  border-radius: 100px;
-  padding: 0.1rem 0.6rem;
-  white-space: nowrap;
+  font-size: 0.78rem; font-weight: 700; color: var(--color-green);
+  background: var(--color-green-faint); border: 1px solid rgba(22,163,74,0.2);
+  border-radius: 100px; padding: 0.1rem 0.6rem; white-space: nowrap;
 }
+
+/* ─── Highlights: summary strip ───────────────────────────────────────── */
+.summary-strip {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); overflow: hidden;
+  margin-bottom: 1.5rem; box-shadow: var(--shadow-xs);
+  animation: scaleIn 0.35s ease both;
+}
+.summary-strip-item {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 1rem 0.75rem; text-align: center; gap: 0.15rem;
+  border-right: 1px solid var(--border);
+}
+.summary-strip-item:last-child { border-right: none; }
+.summary-strip-icon  { font-size: 1.4rem; line-height: 1; }
+.summary-strip-val   { font-size: 1.55rem; font-weight: 900; color: var(--text-primary); letter-spacing: -0.03em; line-height: 1.1; }
+.summary-strip-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+
+/* ─── Highlights: bat first vs chase bar ──────────────────────────────── */
+.bat-first-bar {
+  margin-top: 1.5rem;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 1.1rem 1.25rem;
+  box-shadow: var(--shadow-xs); animation: fadeInUp 0.4s ease both;
+}
+.bat-first-title {
+  font-size: 0.7rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 0.65rem;
+}
+.bat-first-track {
+  height: 8px; background: rgba(220,38,38,0.15); border-radius: 100px;
+  overflow: hidden; margin-bottom: 0.55rem;
+}
+.bat-first-fill {
+  height: 100%; background: linear-gradient(90deg, var(--color-green-dim), var(--color-green));
+  border-radius: 100px; transition: width 0.8s cubic-bezier(0.34,1.2,0.64,1);
+}
+.bat-first-labels {
+  display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.25rem;
+}
+.bat-first-bat   { font-size: 0.78rem; font-weight: 700; color: var(--color-green); }
+.bat-first-chase { font-size: 0.78rem; font-weight: 600; color: var(--color-red); }
 
 /* ─── Hall of Fame ────────────────────────────────────────────────────── */
 
@@ -3150,6 +3188,148 @@ textarea {
   }
 }
 
+/* ─── Champion tab ────────────────────────────────────────────────────── */
+
+@keyframes champTrophyFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
+  30%       { transform: translateY(-14px) rotate(4deg) scale(1.05); }
+  70%       { transform: translateY(-7px) rotate(-2deg) scale(1.02); }
+}
+@keyframes champTrophyBurst {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.35) rotate(8deg); filter: drop-shadow(0 0 30px rgba(245,158,11,1)); }
+  60%  { transform: scale(0.95) rotate(-4deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+@keyframes champStarFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg) scale(1); opacity: 0.35; }
+  50%       { transform: translateY(-22px) rotate(180deg) scale(1.25); opacity: 0.75; }
+}
+@keyframes goldNameShimmer {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Outer wrapper */
+.champ-tab {
+  position: relative;
+  overflow: hidden;
+  padding: 0.5rem 0 2rem;
+}
+
+/* Floating stars (decorative background) */
+.champ-stars-bg {
+  position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0;
+}
+.champ-star {
+  position: absolute; line-height: 1; user-select: none;
+  animation: champStarFloat var(--dur) var(--delay) ease-in-out infinite;
+}
+
+/* Hero section */
+.champ-hero {
+  position: relative; z-index: 1;
+  text-align: center;
+  background: linear-gradient(160deg, rgba(245,158,11,0.07) 0%, rgba(245,158,11,0.02) 60%, transparent 100%);
+  border: 1px solid rgba(245,158,11,0.18);
+  border-radius: var(--radius-xl);
+  padding: 2.25rem 1.5rem 1.75rem;
+  margin-bottom: 1.5rem;
+  animation: scaleIn 0.5s cubic-bezier(0.34,1.2,0.64,1) both;
+}
+
+/* Trophy button */
+.champ-trophy {
+  background: none; border: none; cursor: pointer;
+  font-size: 5.5rem; line-height: 1; display: inline-block;
+  animation: champTrophyFloat 3.5s ease-in-out infinite;
+  filter: drop-shadow(0 0 22px rgba(245,158,11,0.65));
+  transition: filter var(--transition);
+  margin-bottom: 0.5rem;
+}
+.champ-trophy:hover { filter: drop-shadow(0 0 36px rgba(245,158,11,0.9)) drop-shadow(0 0 60px rgba(245,158,11,0.4)); }
+.champ-trophy.champ-trophy-burst { animation: champTrophyBurst 0.55s ease both; }
+
+/* "CHAMPION" pill */
+.champ-badge-pill {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-size: 0.7rem; font-weight: 900; letter-spacing: 0.14em;
+  color: var(--color-gold);
+  background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.28);
+  border-radius: 100px; padding: 0.28rem 1rem;
+  margin-bottom: 1.1rem;
+  animation: pulseGoldGlow 2.5s ease infinite;
+}
+
+/* Champion team name — animated gold gradient */
+.champ-team-name {
+  font-size: clamp(1.9rem, 6vw, 3rem); font-weight: 900;
+  letter-spacing: -0.03em; line-height: 1.1; margin-bottom: 0.4rem;
+  background: linear-gradient(135deg, #d97706 0%, #f59e0b 35%, #fcd34d 55%, #f59e0b 70%, #d97706 100%);
+  background-size: 300% 300%;
+  animation: goldNameShimmer 4s ease infinite;
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+
+.champ-context {
+  font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.6rem;
+}
+
+.champ-result-note {
+  display: inline-block; font-size: 0.82rem; font-weight: 600; color: var(--color-gold);
+  background: rgba(245,158,11,0.09); border: 1px solid rgba(245,158,11,0.22);
+  border-radius: var(--radius-sm); padding: 0.35rem 0.85rem;
+  margin-top: 0.4rem;
+  animation: fadeIn 0.5s ease 0.4s both;
+}
+
+/* Stats grid */
+.champ-stats-grid {
+  position: relative; z-index: 1;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  background: var(--bg-card); border: 1px solid rgba(245,158,11,0.2);
+  border-radius: var(--radius-lg); overflow: hidden;
+  box-shadow: 0 4px 20px rgba(245,158,11,0.08);
+  margin-bottom: 1.25rem;
+  animation: fadeInUp 0.5s ease 0.25s both;
+}
+.champ-stat {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 1rem 0.75rem; text-align: center;
+  border-right: 1px solid rgba(245,158,11,0.1);
+}
+.champ-stat:last-child { border-right: none; }
+.champ-stat-val   { font-size: 1.55rem; font-weight: 900; color: var(--color-gold); letter-spacing: -0.04em; line-height: 1.1; }
+.champ-stat-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-muted); margin-top: 0.2rem; }
+
+/* Runner-up row */
+.champ-runner-up {
+  position: relative; z-index: 1;
+  display: flex; align-items: center; gap: 0.6rem; justify-content: center;
+  font-size: 0.85rem; color: var(--text-secondary);
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 0.6rem 1rem;
+  margin-bottom: 1.5rem;
+  animation: fadeInUp 0.5s ease 0.35s both;
+}
+.champ-runner-badge { font-size: 1.1rem; }
+
+/* Actions */
+.champ-actions {
+  position: relative; z-index: 1;
+  display: flex; justify-content: center; gap: 0.75rem; flex-wrap: wrap;
+  animation: fadeInUp 0.5s ease 0.45s both;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .champ-trophy    { font-size: 4rem; }
+  .champ-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .champ-stat:nth-child(2) { border-right: none; }
+  .champ-stat:nth-child(3) { border-top: 1px solid rgba(245,158,11,0.1); }
+}
+
 /* ─── Helpers ─────────────────────────────────────────────────────────── */
 .divider {
   height: 1px;
@@ -3324,6 +3504,9 @@ textarea {
   .hof-podium {
     grid-template-columns: 1fr;
   }
+  .summary-strip { grid-template-columns: repeat(2, 1fr); }
+  .summary-strip-item:nth-child(2) { border-right: 1px solid var(--border); }
+  .summary-strip-item:nth-child(3) { grid-column: 1 / -1; border-right: none; border-top: 1px solid var(--border); }
   .stat-cards-grid {
     grid-template-columns: 1fr;
     gap: 0.75rem;

@@ -1041,6 +1041,46 @@ function StatCard({ icon, label, value, sub }) {
   );
 }
 
+/** Three quick-number counters at the top of the Highlights tab */
+function SummaryStrip({ summary }) {
+  if (!summary) return null;
+  const items = [
+    { icon: '🏏', value: summary.completed, label: 'Matches Played' },
+    { icon: '💥', value: summary.totalRuns.toLocaleString(), label: 'Total Runs' },
+    { icon: '📊', value: summary.avgScore,  label: 'Avg Score / Innings' },
+  ];
+  return (
+    <div className="summary-strip">
+      {items.map(({ icon, value, label }) => (
+        <div key={label} className="summary-strip-item">
+          <span className="summary-strip-icon">{icon}</span>
+          <span className="summary-strip-val">{value}</span>
+          <span className="summary-strip-label">{label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Horizontal bar showing batting-first vs chasing win rate */
+function BatFirstBar({ batFirst }) {
+  if (!batFirst || batFirst.total === 0) return null;
+  const pct      = Math.round((batFirst.wins / batFirst.total) * 100);
+  const chasePct = 100 - pct;
+  return (
+    <div className="bat-first-bar">
+      <div className="bat-first-title">Batting First vs Chasing</div>
+      <div className="bat-first-track">
+        <div className="bat-first-fill" style={{ width: `${pct}%` }} />
+      </div>
+      <div className="bat-first-labels">
+        <span className="bat-first-bat">🏏 Bat first wins: {batFirst.wins}/{batFirst.total} ({pct}%)</span>
+        <span className="bat-first-chase">Chase wins: {batFirst.total - batFirst.wins}/{batFirst.total} ({chasePct}%)</span>
+      </div>
+    </div>
+  );
+}
+
 /** Renders the Highlights tab — fun tournament stats */
 function HighlightsTab({ tournamentId }) {
   const [stats, setStats] = useState(null);
@@ -1062,11 +1102,19 @@ function HighlightsTab({ tournamentId }) {
     return <div className="loading-wrap"><div className="spinner" />Computing stats…</div>;
   }
 
-  const { biggestWin, highestScore, winStreaks } = stats ?? {};
+  const {
+    biggestWin, highestScore, winStreaks,
+    closestMatch, lowestScore, unbeaten, tossLuck, batFirst, summary,
+  } = stats ?? {};
 
   return (
     <div>
+      {/* Quick numbers strip */}
+      <SummaryStrip summary={summary} />
+
+      {/* Stat cards grid */}
       <div className="stat-cards-grid">
+        {/* ── existing ── */}
         <StatCard
           icon="💥"
           label="Biggest Win"
@@ -1095,6 +1143,178 @@ function HighlightsTab({ tournamentId }) {
             <div className="stat-card-empty">No streaks yet</div>
           )}
         </div>
+
+        {/* ── new ── */}
+        <StatCard
+          icon="⚡"
+          label="Closest Match"
+          value={closestMatch ? `Won by ${closestMatch.margin} run${closestMatch.margin !== 1 ? 's' : ''}` : null}
+          sub={closestMatch ? `${closestMatch.winnerName} beat ${closestMatch.loserName}` : null}
+        />
+        <StatCard
+          icon="📉"
+          label="Lowest Score"
+          value={lowestScore ? `${lowestScore.runs}/${lowestScore.wickets}` : null}
+          sub={lowestScore ? `${lowestScore.teamName} vs ${lowestScore.againstName}` : null}
+        />
+        <StatCard
+          icon="🛡️"
+          label="Unbeaten"
+          value={unbeaten ? unbeaten.teamName : null}
+          sub={unbeaten ? `${unbeaten.wins}W · 0L` : null}
+        />
+        <StatCard
+          icon="🎲"
+          label="Toss Luck"
+          value={tossLuck ? tossLuck.teamName : null}
+          sub={tossLuck ? `Won ${tossLuck.count} of ${tossLuck.total} tosses` : null}
+        />
+      </div>
+
+      {/* Bat first vs chase bar */}
+      <BatFirstBar batFirst={batFirst} />
+    </div>
+  );
+}
+
+/** Floating star particle — purely decorative */
+const CHAMP_STARS = Array.from({ length: 14 }, (_, i) => ({
+  icon:  ['⭐','🌟','✨','💫'][i % 4],
+  left:  `${6 + i * 6.5}%`,
+  top:   `${8 + (i % 5) * 18}%`,
+  size:  `${0.75 + (i % 3) * 0.35}rem`,
+  dur:   `${2.2 + (i % 4) * 0.6}s`,
+  delay: `${(i * 0.28).toFixed(2)}s`,
+}));
+
+/**
+ * Champion showcase tab — shown once the tournament is completed.
+ * Features animated trophy, floating stars, gold name gradient, stats row,
+ * and a shortcut to the full celebration page.
+ */
+function ChampionTab({ tournament, fixtures, standings, poolStandings }) {
+  const navigate  = useNavigate();
+  const [burst, setBurst] = useState(false);
+
+  const finalFixture = fixtures.find((f) => f.type === 'final' && f.status === 'completed');
+  const champion  = finalFixture?.winner;
+  const runnerUp  = champion?._id?.toString() === finalFixture?.homeTeam?._id?.toString()
+    ? finalFixture?.awayTeam
+    : finalFixture?.homeTeam;
+
+  // Combine pool standings or use regular standings for stat lookup
+  const allStandings = poolStandings
+    ? [...(poolStandings.poolA ?? []), ...(poolStandings.poolB ?? [])]
+    : standings;
+
+  const champRow = champion
+    ? allStandings.find((row) =>
+        (row.team._id ?? row.team).toString() === (champion._id ?? champion).toString()
+      )
+    : null;
+
+  function handleTrophyClick() {
+    setBurst(true);
+    setTimeout(() => setBurst(false), 600);
+  }
+
+  if (!champion) {
+    return (
+      <div className="empty-state">
+        <span className="empty-state-icon">🏆</span>
+        <div className="empty-state-title">Champion not yet decided</div>
+        <div className="empty-state-desc">Complete the Final to crown a champion.</div>
+      </div>
+    );
+  }
+
+  const winRate = champRow
+    ? Math.round((champRow.won / Math.max(champRow.played, 1)) * 100)
+    : null;
+
+  return (
+    <div className="champ-tab">
+      {/* Floating star particles */}
+      <div className="champ-stars-bg" aria-hidden="true">
+        {CHAMP_STARS.map((s, i) => (
+          <span
+            key={i}
+            className="champ-star"
+            style={{ left: s.left, top: s.top, fontSize: s.size, '--dur': s.dur, '--delay': s.delay }}
+          >
+            {s.icon}
+          </span>
+        ))}
+      </div>
+
+      {/* Hero */}
+      <div className="champ-hero">
+        {/* Trophy */}
+        <button
+          className={`champ-trophy${burst ? ' champ-trophy-burst' : ''}`}
+          onClick={handleTrophyClick}
+          aria-label="Trophy"
+          type="button"
+        >
+          🏆
+        </button>
+
+        {/* Champion badge */}
+        <div className="champ-badge-pill">🎉 Tournament Champion 🎉</div>
+
+        {/* Avatar */}
+        <TeamAvatar name={champion.name} size={96} style={{ margin: '0 auto 0.75rem', display: 'block' }} />
+
+        {/* Name */}
+        <h1 className="champ-team-name">{champion.name}</h1>
+        <p className="champ-context">{tournament.name} · {tournament.overs}-over format</p>
+
+        {/* Final result note */}
+        {finalFixture?.resultNote && (
+          <div className="champ-result-note">{finalFixture.resultNote} in the Final</div>
+        )}
+      </div>
+
+      {/* Stats row */}
+      {champRow && (
+        <div className="champ-stats-grid">
+          {[
+            { val: champRow.won,                         label: 'Wins' },
+            { val: `${winRate}%`,                        label: 'Win Rate' },
+            { val: champRow.played,                      label: 'Matches' },
+            { val: champRow.runsScored.toLocaleString(), label: 'Runs Scored' },
+          ].map(({ val, label }) => (
+            <div key={label} className="champ-stat">
+              <span className="champ-stat-val">{val}</span>
+              <span className="champ-stat-label">{label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Runner-up */}
+      {runnerUp && (
+        <div className="champ-runner-up">
+          <TeamAvatar name={runnerUp.name} size={28} style={{ flexShrink: 0 }} />
+          <span>Runner-up: <strong>{runnerUp.name}</strong></span>
+          <span className="champ-runner-badge">🥈</span>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="champ-actions">
+        <button
+          className="btn btn-gold btn-lg"
+          onClick={() => navigate(`/celebration/${tournament._id}`)}
+        >
+          🎉 Full Celebration
+        </button>
+        <button
+          className="btn btn-ghost"
+          onClick={() => navigate('/hall-of-fame')}
+        >
+          🏆 Hall of Fame
+        </button>
       </div>
     </div>
   );
@@ -1112,6 +1332,7 @@ export default function TournamentDetail() {
   const [poolStandings,    setPoolStandings]    = useState(null);
   const [standingsLoading, setStandingsLoading] = useState(false);
   const [activeTab,        setActiveTab]        = useState('teams');
+  const [autoTabSet,       setAutoTabSet]       = useState(false);
   const [loading,          setLoading]          = useState(true);
   const [error,            setError]            = useState('');
 
@@ -1143,6 +1364,14 @@ export default function TournamentDetail() {
       setLoading(false);
     }
   }, [id]);
+
+  // Auto-switch to Champion tab once on first load when tournament is complete
+  useEffect(() => {
+    if (!autoTabSet && tournament?.status === 'completed') {
+      setActiveTab('champion');
+      setAutoTabSet(true);
+    }
+  }, [tournament?.status, autoTabSet]);
 
   /** Reloads standings when the Standings tab is opened */
   async function loadStandings() {
@@ -1197,6 +1426,7 @@ export default function TournamentDetail() {
   /* Tabs: always show Teams, Fixtures, Standings.
      Show Playoffs tab when fixtures are generated (it handles its own empty state). */
   const tabs = [
+    ...(tournament.status === 'completed' ? [{ key: 'champion', label: '🏆 Champion' }] : []),
     { key: 'teams', label: 'Teams' },
     { key: 'fixtures', label: 'Group Stage' },
     ...(tournament.fixturesGenerated ? [{ key: 'playoffs', label: tournament.playoffGenerated ? '🏆 Playoffs' : 'Playoffs' }] : []),
@@ -1282,6 +1512,14 @@ export default function TournamentDetail() {
           )}
           {activeTab === 'highlights' && (
             <HighlightsTab tournamentId={id} />
+          )}
+          {activeTab === 'champion' && (
+            <ChampionTab
+              tournament={tournament}
+              fixtures={fixtures}
+              standings={standings}
+              poolStandings={poolStandings}
+            />
           )}
         </div>
       </div>
