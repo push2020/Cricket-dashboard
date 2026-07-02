@@ -59,6 +59,11 @@ export function deleteTeam(id) {
   return api.delete(`/teams/${id}`);
 }
 
+/** Returns all unique team names sorted by usage frequency across all tournaments */
+export function getTeamSuggestions() {
+  return api.get('/teams/suggestions');
+}
+
 /* ─── Fixtures ────────────────────────────────────────────────────────── */
 
 /** Returns all fixtures for a tournament with team refs populated, sorted by round */

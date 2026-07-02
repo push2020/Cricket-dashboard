@@ -1267,10 +1267,43 @@ textarea {
 .add-team-input {
   flex: 1;
 }
-.add-team-btn {
-  flex-shrink: 0;
-  white-space: nowrap;
+.add-team-btn { flex-shrink: 0; white-space: nowrap; }
+
+/* Previously used team suggestions */
+.team-suggestions {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
 }
+.team-suggestions-label {
+  font-size: 0.68rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.09em; color: var(--text-muted); margin-bottom: 0.6rem;
+}
+.team-suggestions-chips {
+  display: flex; flex-wrap: wrap; gap: 0.5rem;
+}
+.team-suggestion-chip {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: 100px; padding: 0.28rem 0.65rem 0.28rem 0.35rem;
+  font-size: 0.82rem; font-weight: 600; color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-slow);
+  animation: scaleIn 0.3s ease both;
+}
+.team-suggestion-chip:hover:not(:disabled) {
+  border-color: var(--color-green);
+  background: var(--color-green-faint);
+  color: var(--color-green);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+.team-suggestion-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+.chip-plus {
+  font-size: 1rem; font-weight: 900; color: var(--color-green);
+  line-height: 1; flex-shrink: 0;
+}
+.team-suggestion-chip:hover .chip-plus { transform: scale(1.2); }
 
 /* ─── Fixtures ────────────────────────────────────────────────────────── */
 

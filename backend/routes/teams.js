@@ -2,6 +2,19 @@ const router     = require('express').Router();
 const Team       = require('../models/Team');
 const Tournament = require('../models/Tournament');
 
+// GET /api/teams/suggestions — unique names sorted by usage frequency (most used first)
+router.get('/suggestions', async (req, res) => {
+  try {
+    const result = await Team.aggregate([
+      { $group: { _id: '$name', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ]);
+    res.json(result.map((r) => r._id));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // DELETE /api/teams/:id
 router.delete('/:id', async (req, res) => {
   try {

@@ -12,6 +12,7 @@ import {
   deleteTeam,
   generateFixtures,
   generatePlayoffs,
+  getTeamSuggestions,
 } from '../api';
 
 const STATUS_LABEL = { upcoming: 'Upcoming', active: 'Active', completed: 'Completed' };
@@ -364,19 +365,36 @@ function IplBracket({ q1Fixture: q1, eliminatorFixture: ef, qualifier2Fixture: q
 
 /** Renders the Teams tab */
 function TeamsTab({ tournament, teams, onTeamAdded, onTeamDeleted }) {
-  const [newName, setNewName] = useState('');
-  const [adding,  setAdding]  = useState(false);
-  const [error,   setError]   = useState('');
+  const [newName,       setNewName]       = useState('');
+  const [adding,        setAdding]        = useState(false);
+  const [error,         setError]         = useState('');
+  const [suggestions,   setSuggestions]   = useState([]);
+  const [sugLoading,    setSugLoading]    = useState(false);
   const locked = tournament.fixturesGenerated;
 
-  async function handleAdd(e) {
-    e.preventDefault();
-    const name = newName.trim();
-    if (!name) return;
+  /** Load past team names every time the tab mounts (or unlocks) */
+  useEffect(() => {
+    if (locked) return;
+    setSugLoading(true);
+    getTeamSuggestions()
+      .then(({ data }) => setSuggestions(Array.isArray(data) ? data : []))
+      .catch(() => setSuggestions([]))
+      .finally(() => setSugLoading(false));
+  }, [locked, tournament._id]);
+
+  /** Names already added to this tournament (case-insensitive set) */
+  const addedNames = new Set(teams.map((t) => t.name.toLowerCase()));
+
+  /** Past names not yet added to this tournament */
+  const available = suggestions.filter((n) => !addedNames.has(n.toLowerCase()));
+
+  async function addTeam(name) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
     setError('');
     try {
       setAdding(true);
-      const { data } = await createTeam({ name, tournamentId: tournament._id });
+      const { data } = await createTeam({ name: trimmed, tournamentId: tournament._id });
       onTeamAdded(data);
       setNewName('');
     } catch (err) {
@@ -398,17 +416,13 @@ function TeamsTab({ tournament, teams, onTeamAdded, onTeamDeleted }) {
 
   return (
     <div>
-      {/* Header row */}
+      {/* Header */}
       <div className="teams-header">
         <div className="teams-header-left">
           <span className="teams-count-badge">{teams.length}</span>
-          <span className="teams-header-label">
-            {teams.length === 1 ? 'Team' : 'Teams'}
-          </span>
+          <span className="teams-header-label">{teams.length === 1 ? 'Team' : 'Teams'}</span>
         </div>
-        {locked && (
-          <span className="teams-locked-pill">🔒 Locked</span>
-        )}
+        {locked && <span className="teams-locked-pill">🔒 Locked</span>}
       </div>
 
       {/* Team list */}
@@ -421,43 +435,34 @@ function TeamsTab({ tournament, teams, onTeamAdded, onTeamDeleted }) {
       ) : (
         <div className="teams-list">
           {teams.map((team, idx) => (
-              <div
-                key={team._id}
-                className={`team-row${locked ? ' team-row-locked' : ''}`}
-                style={{ animationDelay: `${idx * 0.04}s` }}
-              >
-                {/* Number badge */}
-                <span className="team-seq">#{idx + 1}</span>
-
-                {/* Human avatar */}
-                <TeamAvatar name={team.name} size={40} />
-
-                {/* Name */}
-                <span className="team-name-text">{team.name}</span>
-
-                {/* Remove or lock icon */}
-                {!locked ? (
-                  <button
-                    className="team-remove-btn"
-                    onClick={() => handleDelete(team._id)}
-                    aria-label={`Remove ${team.name}`}
-                    title="Remove team"
-                  >
-                    ✕
-                  </button>
-                ) : (
-                  <span className="team-lock-icon" title="Locked">🔒</span>
-                )}
-              </div>
+            <div
+              key={team._id}
+              className={`team-row${locked ? ' team-row-locked' : ''}`}
+              style={{ animationDelay: `${idx * 0.04}s` }}
+            >
+              <span className="team-seq">#{idx + 1}</span>
+              <TeamAvatar name={team.name} size={40} />
+              <span className="team-name-text">{team.name}</span>
+              {!locked ? (
+                <button
+                  className="team-remove-btn"
+                  onClick={() => handleDelete(team._id)}
+                  aria-label={`Remove ${team.name}`}
+                  title="Remove team"
+                >✕</button>
+              ) : (
+                <span className="team-lock-icon" title="Locked">🔒</span>
+              )}
+            </div>
           ))}
         </div>
       )}
 
-      {/* Add team form */}
+      {/* Add form + suggestions */}
       {!locked && (
         <div className="add-team-card">
           {error && <div className="error-banner" style={{ marginBottom: '1rem' }}>{error}</div>}
-          <form className="add-team-form" onSubmit={handleAdd}>
+          <form className="add-team-form" onSubmit={(e) => { e.preventDefault(); addTeam(newName); }}>
             <input
               id="team-name-input"
               className="form-input add-team-input"
@@ -474,6 +479,35 @@ function TeamsTab({ tournament, teams, onTeamAdded, onTeamDeleted }) {
               {adding ? '…' : '+ Add'}
             </button>
           </form>
+
+          {/* Previously used team chips */}
+          {sugLoading && (
+            <div className="team-suggestions">
+              <div className="team-suggestions-label" style={{ opacity: 0.5 }}>
+                Loading previous teams…
+              </div>
+            </div>
+          )}
+          {!sugLoading && available.length > 0 && (
+            <div className="team-suggestions">
+              <div className="team-suggestions-label">Previously used — tap to add</div>
+              <div className="team-suggestions-chips">
+                {available.map((name) => (
+                  <button
+                    key={name}
+                    className="team-suggestion-chip"
+                    onClick={() => addTeam(name)}
+                    disabled={adding}
+                    type="button"
+                  >
+                    <TeamAvatar name={name} size={22} />
+                    <span>{name}</span>
+                    <span className="chip-plus">+</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
