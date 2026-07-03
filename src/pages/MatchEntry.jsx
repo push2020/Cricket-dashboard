@@ -4,6 +4,14 @@ import { getFixture, enterResult } from '../api';
 
 const INITIAL_INNINGS = { runs: '', wickets: '', overs: '' };
 
+const CRICKET_FLAGS = {
+  'India':        '🇮🇳',
+  'Australia':    '🇦🇺',
+  'England':      '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+  'South Africa': '🇿🇦',
+  'New Zealand':  '🇳🇿',
+};
+
 /**
  * Determines which team batted first based on toss information.
  * Returns true if the home team batted first.
@@ -217,6 +225,20 @@ export default function MatchEntry() {
           {fixture.homeTeam.name} <span className="text-muted" style={{ fontWeight: 400 }}>vs</span> {fixture.awayTeam.name}
         </h1>
         <p className="page-subtitle">{fixtureTypeLabel} · {fixture.tournamentId?.name}</p>
+        {(fixture.homeTeamAssignment || fixture.awayTeamAssignment) && (
+          <div className="match-team-assignments">
+            {fixture.homeTeamAssignment && (
+              <span className="match-assignment-tag">
+                {CRICKET_FLAGS[fixture.homeTeamAssignment]} {fixture.homeTeam.name} playing as <strong>{fixture.homeTeamAssignment}</strong>
+              </span>
+            )}
+            {fixture.awayTeamAssignment && (
+              <span className="match-assignment-tag">
+                {CRICKET_FLAGS[fixture.awayTeamAssignment]} {fixture.awayTeam.name} playing as <strong>{fixture.awayTeamAssignment}</strong>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {error   && <div className="error-banner">{error}</div>}

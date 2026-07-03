@@ -21,6 +21,15 @@ const STATUS_CLASS = { upcoming: 'badge-upcoming', active: 'badge-active', compl
 const RANK_MEDAL = ['🥇', '🥈', '🥉', '4️⃣'];
 const RANK_CLASS = ['rank-1', 'rank-2', 'rank-3', 'rank-4'];
 
+/** Country flags for cricket team assignments */
+const CRICKET_FLAGS = {
+  'India':        '🇮🇳',
+  'Australia':    '🇦🇺',
+  'England':      '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+  'South Africa': '🇿🇦',
+  'New Zealand':  '🇳🇿',
+};
+
 /**
  * Returns a Set of team-ID strings that have mathematically guaranteed a
  * top-qualifyCount finish in the group stage.
@@ -139,11 +148,18 @@ function FixtureCard({ f, isPlayoff, animIdx = 0 }) {
       <div className="fc-row">
         {/* ── Teams area: 3-col grid gives each team exactly 50% ── */}
         <div className="fc-teams">
-          {/* Home: avatar → W → name  (mirrors away: name → W → avatar) */}
+          {/* Home: avatar → W → name + cricket team tag */}
           <div className={`fc-side fc-home${homeWon ? ' fc-won' : ''}`}>
             <TeamAvatar name={f.homeTeam ? homeName : 'TBD'} size={36} />
             {homeWon && <span className="fc-w-pill">W</span>}
-            <span className="fc-name">{homeName}</span>
+            <div className="fc-player-info">
+              <span className="fc-name">{homeName}</span>
+              {f.homeTeamAssignment && (
+                <span className="fc-cricket-tag">
+                  {CRICKET_FLAGS[f.homeTeamAssignment]} {f.homeTeamAssignment}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Centre: VS pill or scores */}
@@ -167,7 +183,14 @@ function FixtureCard({ f, isPlayoff, animIdx = 0 }) {
           <div className={`fc-side fc-away${awayWon ? ' fc-won' : ''}`}>
             <TeamAvatar name={f.awayTeam ? awayName : 'TBD'} size={36} />
             {awayWon && <span className="fc-w-pill">W</span>}
-            <span className="fc-name">{awayName}</span>
+            <div className="fc-player-info fc-player-info-away">
+              <span className="fc-name">{awayName}</span>
+              {f.awayTeamAssignment && (
+                <span className="fc-cricket-tag">
+                  {CRICKET_FLAGS[f.awayTeamAssignment]} {f.awayTeamAssignment}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

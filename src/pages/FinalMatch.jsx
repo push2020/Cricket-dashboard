@@ -4,6 +4,14 @@ import { getFixture, enterResult } from '../api';
 
 const INITIAL_INNINGS = { runs: '', wickets: '', overs: '' };
 
+const CRICKET_FLAGS = {
+  'India':        '🇮🇳',
+  'Australia':    '🇦🇺',
+  'England':      '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+  'South Africa': '🇿🇦',
+  'New Zealand':  '🇳🇿',
+};
+
 /** Returns true if the home team batted first based on toss */
 function homeTeamBattedFirst(tossWinnerId, tossDecision, homeTeamId) {
   if (!tossWinnerId || !tossDecision) return true;
@@ -210,9 +218,23 @@ export default function FinalMatch() {
         <div className="final-badge">The Grand Final</div>
         <h1 className="final-title">{fixture.tournamentId?.name}</h1>
         <div className="final-teams-display">
-          <div className="final-team-name">{fixture.homeTeam.name}</div>
+          <div className="final-team-col">
+            <div className="final-team-name">{fixture.homeTeam.name}</div>
+            {fixture.homeTeamAssignment && (
+              <div className="final-team-country">
+                {CRICKET_FLAGS[fixture.homeTeamAssignment]} {fixture.homeTeamAssignment}
+              </div>
+            )}
+          </div>
           <div className="final-vs">⚡ vs ⚡</div>
-          <div className="final-team-name">{fixture.awayTeam.name}</div>
+          <div className="final-team-col">
+            <div className="final-team-name">{fixture.awayTeam.name}</div>
+            {fixture.awayTeamAssignment && (
+              <div className="final-team-country">
+                {CRICKET_FLAGS[fixture.awayTeamAssignment]} {fixture.awayTeamAssignment}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

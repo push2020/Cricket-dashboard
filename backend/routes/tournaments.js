@@ -18,6 +18,18 @@ function populateFixtures(query) {
 
 const INNINGS_DEFAULT = { runs: 0, wickets: 0, overs: 0 };
 
+/** Five cricket nations players can be assigned in each fixture */
+const CRICKET_TEAMS = ['India', 'Australia', 'England', 'South Africa', 'New Zealand'];
+
+/**
+ * Returns two different randomly chosen cricket team names — one per player.
+ * Ensures neither player in the same fixture gets the same team.
+ */
+function randomCricketPair() {
+  const shuffled = [...CRICKET_TEAMS].sort(() => Math.random() - 0.5);
+  return { homeTeamAssignment: shuffled[0], awayTeamAssignment: shuffled[1] };
+}
+
 /* ─────────────────────────────── Tournament CRUD ─────────────────────── */
 
 router.get('/', async (_req, res) => {
@@ -162,11 +174,13 @@ router.post('/:id/fixtures/generate', async (req, res) => {
         ...poolAPairs.map(({ homeTeam, awayTeam, round }) => ({
           tournamentId: req.params.id, homeTeam, awayTeam, round,
           type: 'group', pool: 'A', status: 'scheduled',
+          ...randomCricketPair(),
           homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT,
         })),
         ...poolBPairs.map(({ homeTeam, awayTeam, round }) => ({
           tournamentId: req.params.id, homeTeam, awayTeam, round,
           type: 'group', pool: 'B', status: 'scheduled',
+          ...randomCricketPair(),
           homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT,
         })),
       ]);
@@ -192,6 +206,7 @@ router.post('/:id/fixtures/generate', async (req, res) => {
       pairs.map(({ homeTeam, awayTeam, round }) => ({
         tournamentId: req.params.id, homeTeam, awayTeam, round,
         type: 'group', status: 'scheduled',
+        ...randomCricketPair(),
         homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT,
       }))
     );
@@ -247,10 +262,10 @@ router.post('/:id/playoffs/generate', async (req, res) => {
       const { team: B2 } = poolBStandings[1];
 
       await Promise.all([
-        Fixture.create({ tournamentId: req.params.id, homeTeam: A1._id, awayTeam: B1._id, round: R,     type: 'qualifier1', status: 'scheduled', homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT }),
-        Fixture.create({ tournamentId: req.params.id, homeTeam: A2._id, awayTeam: B2._id, round: R,     type: 'eliminator', status: 'scheduled', homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT }),
-        Fixture.create({ tournamentId: req.params.id, homeTeam: null,   awayTeam: null,   round: R + 1, type: 'qualifier2', status: 'scheduled', homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT }),
-        Fixture.create({ tournamentId: req.params.id, homeTeam: null,   awayTeam: null,   round: R + 2, type: 'final',      status: 'scheduled', homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT }),
+        Fixture.create({ tournamentId: req.params.id, homeTeam: A1._id, awayTeam: B1._id, round: R,     type: 'qualifier1', status: 'scheduled', ...randomCricketPair(), homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT }),
+        Fixture.create({ tournamentId: req.params.id, homeTeam: A2._id, awayTeam: B2._id, round: R,     type: 'eliminator', status: 'scheduled', ...randomCricketPair(), homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT }),
+        Fixture.create({ tournamentId: req.params.id, homeTeam: null,   awayTeam: null,   round: R + 1, type: 'qualifier2', status: 'scheduled', ...randomCricketPair(), homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT }),
+        Fixture.create({ tournamentId: req.params.id, homeTeam: null,   awayTeam: null,   round: R + 2, type: 'final',      status: 'scheduled', ...randomCricketPair(), homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT }),
       ]);
 
       tournament.playoffGenerated = true;
@@ -264,7 +279,7 @@ router.post('/:id/playoffs/generate', async (req, res) => {
       const standings = computeStandings(teams, populatedFixtures);
       if (standings.length < 2) return res.status(400).json({ message: 'Need at least 2 teams in standings' });
       const [first, second] = standings;
-      await Fixture.create({ tournamentId: req.params.id, homeTeam: first.team._id, awayTeam: second.team._id, round: R, type: 'final', status: 'scheduled', homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT });
+      await Fixture.create({ tournamentId: req.params.id, homeTeam: first.team._id, awayTeam: second.team._id, round: R, type: 'final', status: 'scheduled', ...randomCricketPair(), homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT });
       tournament.playoffGenerated = true;
       await tournament.save();
       return res.json({ message: 'Direct final generated' });
@@ -277,10 +292,10 @@ router.post('/:id/playoffs/generate', async (req, res) => {
 
     const [first, second, third, fourth] = standings;
     await Promise.all([
-      Fixture.create({ tournamentId: req.params.id, homeTeam: first.team._id,  awayTeam: second.team._id, round: R,     type: 'qualifier1', status: 'scheduled', homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT }),
-      Fixture.create({ tournamentId: req.params.id, homeTeam: third.team._id,  awayTeam: fourth.team._id, round: R,     type: 'eliminator', status: 'scheduled', homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT }),
-      Fixture.create({ tournamentId: req.params.id, homeTeam: null,            awayTeam: null,            round: R + 1, type: 'qualifier2', status: 'scheduled', homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT }),
-      Fixture.create({ tournamentId: req.params.id, homeTeam: null,            awayTeam: null,            round: R + 2, type: 'final',      status: 'scheduled', homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT }),
+      Fixture.create({ tournamentId: req.params.id, homeTeam: first.team._id,  awayTeam: second.team._id, round: R,     type: 'qualifier1', status: 'scheduled', ...randomCricketPair(), homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT }),
+      Fixture.create({ tournamentId: req.params.id, homeTeam: third.team._id,  awayTeam: fourth.team._id, round: R,     type: 'eliminator', status: 'scheduled', ...randomCricketPair(), homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT }),
+      Fixture.create({ tournamentId: req.params.id, homeTeam: null,            awayTeam: null,            round: R + 1, type: 'qualifier2', status: 'scheduled', ...randomCricketPair(), homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT }),
+      Fixture.create({ tournamentId: req.params.id, homeTeam: null,            awayTeam: null,            round: R + 2, type: 'final',      status: 'scheduled', ...randomCricketPair(), homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT }),
     ]);
 
     tournament.playoffGenerated = true;

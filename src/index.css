@@ -1500,21 +1500,48 @@ textarea {
   transform: scale(1.1);
 }
 
+/* Player info block: name + cricket team tag stacked */
+.fc-player-info {
+  display: flex; flex-direction: column; gap: 0.1rem;
+  flex: 1; min-width: 0; overflow: hidden;
+}
+.fc-player-info-away { text-align: right; align-items: flex-end; }
+
 .fc-name {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
+  font-size: 0.9rem; font-weight: 700; color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.fc-side.fc-won .fc-name {
-  color: var(--color-green);
-  font-weight: 800;
-}
+.fc-side.fc-won .fc-name { color: var(--color-green); font-weight: 800; }
 /* Away name aligns RIGHT so text hugs the VS badge side */
 .fc-away .fc-name { text-align: right; }
+
+/* Cricket team assignment tag */
+.fc-cricket-tag {
+  font-size: 0.68rem; font-weight: 700; color: var(--color-blue);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  letter-spacing: 0.02em;
+}
+.fc-side.fc-won .fc-cricket-tag { color: var(--color-green-dim); }
+
+/* Match entry page — team assignment info strip */
+.match-team-assignments {
+  display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem;
+}
+.match-assignment-tag {
+  font-size: 0.8rem; color: var(--text-secondary);
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 0.25rem 0.65rem;
+}
+.match-assignment-tag strong { color: var(--text-primary); }
+
+/* Final match hero — team + country stacked */
+.final-team-col {
+  display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+}
+.final-team-country {
+  font-size: 0.78rem; font-weight: 700; color: rgba(253,230,138,0.85);
+  letter-spacing: 0.04em;
+}
 
 .fc-w-pill {
   font-size: 0.58rem;

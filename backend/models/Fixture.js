@@ -20,8 +20,10 @@ const fixtureSchema = new mongoose.Schema(
     winner:       { type: ObjectId, ref: 'Team', default: null },
     resultNote:   { type: String, default: '' },
     tossWinner:   { type: ObjectId, ref: 'Team', default: null },
-    tossDecision: { type: String, enum: ['bat', 'field'], default: null },
-    matchDate:    { type: Date, default: null },
+    tossDecision:        { type: String, enum: ['bat', 'field'], default: null },
+    matchDate:           { type: Date, default: null },
+    homeTeamAssignment:  { type: String, default: null }, // cricket team name e.g. "India"
+    awayTeamAssignment:  { type: String, default: null }, // cricket team name e.g. "Australia"
   },
   { timestamps: true }
 );
