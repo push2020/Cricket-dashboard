@@ -3322,6 +3322,51 @@ textarea {
 /* ─── Bilateral series ────────────────────────────────────────────────── */
 
 /* Home page badge */
+/* ─── Bilateral HOF section ───────────────────────────────────────────── */
+.bilateral-hof-section {
+  margin-top: 2.5rem;
+  padding-top: 2rem;
+  border-top: 2px dashed rgba(217,119,6,0.2);
+}
+.bilateral-hof-header {
+  display: flex; align-items: center; gap: 1rem;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7 60%, #fffbeb);
+  border: 1px solid rgba(217,119,6,0.2);
+  border-radius: var(--radius-xl); padding: 1.5rem 2rem;
+  margin-bottom: 1.5rem; box-shadow: 0 2px 12px rgba(217,119,6,0.08);
+  animation: scaleIn 0.4s ease both;
+}
+.bilateral-hof-icon  { font-size: 2.8rem; animation: float 3s ease-in-out infinite; filter: drop-shadow(0 2px 8px rgba(217,119,6,0.35)); flex-shrink: 0; }
+.bilateral-hof-title { font-size: 1.35rem; font-weight: 900; color: var(--text-primary); letter-spacing: -0.02em; }
+.bilateral-hof-sub   { font-size: 0.88rem; color: var(--text-secondary); margin-top: 0.15rem; }
+
+/* H2H card grid */
+.h2h-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; margin-bottom: 0.5rem; }
+.h2h-card {
+  display: flex; align-items: center; gap: 0.5rem;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 1.1rem 1rem;
+  box-shadow: var(--shadow-xs);
+  transition: transform var(--transition), box-shadow var(--transition);
+  animation: scaleIn 0.4s ease both;
+}
+.h2h-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+.h2h-player { flex: 1; text-align: center; }
+.h2h-name { font-size: 0.8rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.2rem; word-break: break-word; }
+.h2h-series-score { font-size: 2rem; font-weight: 900; color: var(--text-muted); letter-spacing: -0.04em; line-height: 1; }
+.h2h-series-score.h2h-leader { color: var(--color-gold); text-shadow: 0 0 12px rgba(217,119,6,0.3); }
+.h2h-match-rec { font-size: 0.68rem; color: var(--text-muted); margin-top: 0.15rem; }
+.h2h-mid { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; flex-shrink: 0; padding: 0 0.25rem; }
+.h2h-label { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
+.h2h-total { font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; }
+.h2h-tied  { font-size: 0.66rem; color: var(--text-muted); }
+
+@media (max-width: 480px) {
+  .h2h-grid { grid-template-columns: 1fr; }
+  .bilateral-hof-header { padding: 1.25rem; }
+  .bilateral-hof-icon { font-size: 2rem; }
+}
+
 .bilateral-series-hint {
   font-size: 0.78rem; font-weight: 600; color: var(--color-gold);
   background: var(--color-gold-faint); border: 1px solid rgba(217,119,6,0.2);
