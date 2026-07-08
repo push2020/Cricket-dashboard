@@ -3319,6 +3319,82 @@ textarea {
   .champ-stat:nth-child(3) { border-top: 1px solid rgba(245,158,11,0.1); }
 }
 
+/* ─── Bilateral series ────────────────────────────────────────────────── */
+
+/* Home page badge */
+.bilateral-series-hint {
+  font-size: 0.78rem; font-weight: 600; color: var(--color-gold);
+  background: var(--color-gold-faint); border: 1px solid rgba(217,119,6,0.2);
+  border-radius: 100px; padding: 0.22rem 0.75rem; white-space: nowrap;
+}
+
+.bilateral-badge {
+  font-size: 0.72rem; font-weight: 700; color: var(--color-gold);
+  background: var(--color-gold-faint); border: 1px solid rgba(217,119,6,0.2);
+  border-radius: 100px; padding: 0.15rem 0.6rem; white-space: nowrap;
+}
+
+/* Create form — type toggle */
+.type-toggle {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;
+}
+.type-toggle-btn {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem;
+  background: var(--bg-secondary); border: 2px solid var(--border);
+  border-radius: var(--radius-lg); padding: 0.85rem 1rem;
+  font-size: 0.9rem; font-weight: 700; color: var(--text-secondary);
+  cursor: pointer; transition: all var(--transition); text-align: left;
+}
+.type-toggle-btn:hover { border-color: var(--color-green); color: var(--color-green); background: var(--color-green-faint); }
+.type-toggle-btn.active { border-color: var(--color-green); color: var(--color-green); background: var(--color-green-faint); }
+.type-toggle-btn.active.bilateral { border-color: var(--color-gold); color: var(--color-gold); background: var(--color-gold-faint); }
+.type-toggle-sub { font-size: 0.72rem; font-weight: 500; color: var(--text-muted); margin-top: 0.1rem; }
+
+/* Series score card */
+.series-score-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  background: linear-gradient(135deg, #fff 0%, #fffdf4 100%);
+  border: 1px solid rgba(217,119,6,0.2); border-radius: var(--radius-xl);
+  padding: 2rem 1.5rem; margin-bottom: 1.25rem;
+  box-shadow: 0 4px 24px rgba(217,119,6,0.08);
+  animation: scaleIn 0.4s ease both;
+}
+.series-player { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; flex: 1; }
+.series-player-name { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); text-align: center; }
+.series-big-score {
+  font-size: 3.5rem; font-weight: 900; color: var(--text-muted);
+  letter-spacing: -0.05em; line-height: 1;
+  transition: color var(--transition);
+}
+.series-big-score.series-score-leading { color: var(--color-gold); text-shadow: 0 0 20px rgba(217,119,6,0.3); }
+.series-divider { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; flex-shrink: 0; }
+.series-vs { font-size: 0.72rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
+.series-played { font-size: 0.68rem; color: var(--text-muted); }
+
+/* Status text */
+.series-status {
+  text-align: center; font-size: 0.92rem; font-weight: 600; color: var(--text-secondary);
+  padding: 0.6rem 1rem; background: var(--bg-secondary);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  margin-bottom: 1.5rem;
+}
+.series-status.series-status-decided { color: var(--color-gold); background: var(--color-gold-faint); border-color: rgba(217,119,6,0.2); font-size: 1rem; font-weight: 800; }
+.series-remaining { color: var(--text-muted); font-weight: 500; }
+
+/* Match log */
+.series-match-log { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.series-log-label { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); padding: 0.6rem 1rem; background: var(--bg-secondary); border-bottom: 1px solid var(--border); }
+.series-log-row { display: flex; align-items: center; gap: 1rem; padding: 0.65rem 1rem; border-bottom: 1px solid var(--border-subtle); }
+.series-log-row:last-child { border-bottom: none; }
+.series-log-num { font-size: 0.72rem; font-weight: 800; color: var(--text-muted); white-space: nowrap; min-width: 55px; }
+.series-log-result { font-size: 0.85rem; font-weight: 600; color: var(--color-green); }
+
+@media (max-width: 480px) {
+  .type-toggle         { grid-template-columns: 1fr; }
+  .series-score-card   { padding: 1.5rem 1rem; }
+  .series-big-score    { font-size: 2.8rem; }
+}
+
 /* ─── Helpers ─────────────────────────────────────────────────────────── */
 .divider {
   height: 1px;

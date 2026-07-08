@@ -17,9 +17,9 @@ export function getTournaments() {
   return api.get('/tournaments');
 }
 
-/** Creates a new tournament */
-export function createTournament({ name, description, overs }) {
-  return api.post('/tournaments', { name, description, overs });
+/** Creates a new tournament (format: 'standard' | 'bilateral', numberOfMatches for bilateral) */
+export function createTournament({ name, description, overs, format, numberOfMatches }) {
+  return api.post('/tournaments', { name, description, overs, format, numberOfMatches });
 }
 
 /** Returns a single tournament by id */
@@ -35,6 +35,11 @@ export function deleteTournament(id) {
 /** Returns the group-stage standings for a tournament */
 export function getStandings(id) {
   return api.get(`/tournaments/${id}/standings`);
+}
+
+/** Returns live series result for a bilateral tournament */
+export function getSeriesResult(id) {
+  return api.get(`/tournaments/${id}/series-result`);
 }
 
 /** Returns highlight stats (biggest win, highest score, win streaks) */

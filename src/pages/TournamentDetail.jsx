@@ -7,6 +7,7 @@ import {
   getFixtures,
   getStandings,
   getPoolStandings,
+  getSeriesResult,
   getTournamentStats,
   createTeam,
   deleteTeam,
@@ -109,11 +110,12 @@ function tbdLabel(type) {
 }
 
 /** Round group header showing round number, match count, and completion progress */
-function RoundHeader({ round, total, done }) {
+function RoundHeader({ round, total, done, isBilateral, seriesTotal }) {
   const allDone = done === total && total > 0;
+  const label   = isBilateral ? `Match ${round} of ${seriesTotal}` : `Round ${round}`;
   return (
     <div className="round-header">
-      <span className="round-label">Round {round}</span>
+      <span className="round-label">{label}</span>
       <span className="round-progress">
         <span className={`round-progress-bar${allDone ? ' complete' : ''}`} style={{ width: `${total > 0 ? (done / total) * 100 : 0}%` }} />
       </span>
@@ -447,7 +449,15 @@ function TeamsTab({ tournament, teams, onTeamAdded, onTeamDeleted }) {
           <span className="teams-count-badge">{teams.length}</span>
           <span className="teams-header-label">{teams.length === 1 ? 'Team' : 'Teams'}</span>
         </div>
-        {locked && <span className="teams-locked-pill">🔒 Locked</span>}
+        {locked
+          ? <span className="teams-locked-pill">🔒 Locked</span>
+          : tournament.format === 'bilateral' && (
+              <span className="bilateral-series-hint">
+                {teams.length === 0 ? 'Add 2 players to begin' :
+                 teams.length === 1 ? '⏳ Add 1 more player — series starts automatically' :
+                 '⚡ Generating matches…'}
+              </span>
+            )}
       </div>
 
       {/* Team list */}
@@ -539,14 +549,16 @@ function TeamsTab({ tournament, teams, onTeamAdded, onTeamDeleted }) {
   );
 }
 
-/** Renders the Group Stage Fixtures tab */
+/** Renders the Group Stage / Matches tab */
 function FixturesTab({ tournament, fixtures, teams, onFixturesGenerated }) {
   const [generating, setGenerating] = useState(false);
   const [error,      setError]      = useState('');
 
-  const groupFixtures = fixtures.filter((f) => (f.type ?? 'group') === 'group');
-  const isPool        = tournament.format === 'pool';
-  const canPool       = teams.length >= 6;
+  const groupFixtures  = fixtures.filter((f) => (f.type ?? 'group') === 'group');
+  const isPool         = tournament.format === 'pool';
+  const isBilateral    = tournament.format === 'bilateral';
+  const canPool        = teams.length >= 6;
+  const seriesTotal    = tournament.numberOfMatches ?? 1;
 
   async function handleGenerate(format = 'standard') {
     setError('');
@@ -575,7 +587,7 @@ function FixturesTab({ tournament, fixtures, teams, onFixturesGenerated }) {
               const done = rFixtures.filter(f => f.status === 'completed').length;
               return (
                 <div key={round} className="round-group">
-                  <RoundHeader round={round} total={rFixtures.length} done={done} />
+                  <RoundHeader round={round} total={rFixtures.length} done={done} isBilateral={isBilateral} seriesTotal={seriesTotal} />
                   <div className="fixtures-list">
                     {rFixtures.map((f, i) => <FixtureCard key={f._id} f={f} isPlayoff={false} animIdx={i} />)}
                   </div>
@@ -595,7 +607,16 @@ function FixturesTab({ tournament, fixtures, teams, onFixturesGenerated }) {
       {!tournament.fixturesGenerated && (
         <div style={{ marginBottom: '1.5rem' }}>
           {error && <div className="error-banner">{error}</div>}
-          {canPool ? (
+          {isBilateral ? (
+            /* Bilateral: matches auto-generate when 2nd player is added — just show a waiting hint */
+            <div className="empty-state" style={{ padding: '3rem 1rem' }}>
+              <span className="empty-state-icon">⏳</span>
+              <div className="empty-state-title">Waiting for both players</div>
+              <div className="empty-state-desc">
+                Add both players in the Teams tab — matches will start automatically.
+              </div>
+            </div>
+          ) : canPool ? (
             /* ≥ 6 teams: offer format choice */
             <div className="format-choice-wrap">
               <p className="format-choice-title">Choose fixture format for {teams.length} teams</p>
@@ -626,7 +647,7 @@ function FixturesTab({ tournament, fixtures, teams, onFixturesGenerated }) {
               </div>
             </div>
           ) : (
-            /* < 6 teams: standard only */
+            /* < 6 teams standard */
             <div className="card" style={{ background: 'var(--bg-secondary)', borderStyle: 'dashed' }}>
               <div className="card-body" style={{ textAlign: 'center', padding: '2.5rem' }}>
                 <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📋</div>
@@ -635,7 +656,11 @@ function FixturesTab({ tournament, fixtures, teams, onFixturesGenerated }) {
                     ? `Add at least 2 teams to generate fixtures (${teams.length} added)`
                     : `Ready to generate ${(teams.length * (teams.length - 1)) / 2} matches across ${teams.length} teams`}
                 </p>
-                <button className="btn btn-primary btn-lg" onClick={() => handleGenerate('standard')} disabled={generating || teams.length < 2}>
+                <button
+                  className="btn btn-primary btn-lg"
+                  onClick={() => handleGenerate('standard')}
+                  disabled={generating || teams.length < 2}
+                >
                   {generating ? 'Generating…' : 'Generate Round-Robin Fixtures'}
                 </button>
               </div>
@@ -656,7 +681,7 @@ function FixturesTab({ tournament, fixtures, teams, onFixturesGenerated }) {
         const done = rFixtures.filter(f => f.status === 'completed').length;
         return (
           <div key={round} className="round-group">
-            <RoundHeader round={round} total={rFixtures.length} done={done} />
+            <RoundHeader round={round} total={rFixtures.length} done={done} isBilateral={isBilateral} seriesTotal={seriesTotal} />
             <div className="fixtures-list">
               {rFixtures.map((f, i) => <FixtureCard key={f._id} f={f} isPlayoff={false} animIdx={i} />)}
             </div>
@@ -1202,6 +1227,91 @@ function HighlightsTab({ tournamentId }) {
   );
 }
 
+/**
+ * Series tab — shown for bilateral format tournaments.
+ * Displays a live head-to-head score, match-by-match results, and series status.
+ */
+function SeriesTab({ tournamentId, fixtures, tournament }) {
+  const [series,  setSeries]  = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getSeriesResult(tournamentId)
+      .then(({ data }) => setSeries(data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [tournamentId]);
+
+  if (loading) return <div className="loading-wrap"><div className="spinner" />Loading series…</div>;
+  if (!series)  return <div className="empty-state"><span className="empty-state-icon">🏏</span><div className="empty-state-title">No series data yet</div></div>;
+
+  const { teamA, teamB, played, total, decided, winner, tied } = series;
+  const statusText = (() => {
+    if (decided && winner)   return `${winner.name} wins the series ${Math.max(teamA.wins, teamB.wins)}–${Math.min(teamA.wins, teamB.wins)}!`;
+    if (decided && !winner)  return `Series tied ${teamA.wins}–${teamB.wins}`;
+    if (teamA.wins === teamB.wins && played > 0) return `Series tied ${teamA.wins}–${teamA.wins}`;
+    if (teamA.wins > teamB.wins) return `${teamA.name} leads ${teamA.wins}–${teamB.wins}`;
+    if (teamB.wins > teamA.wins) return `${teamB.name} leads ${teamB.wins}–${teamA.wins}`;
+    return `Series level — ${total - played} match${total - played !== 1 ? 'es' : ''} to go`;
+  })();
+
+  const completed = fixtures.filter((f) => f.status === 'completed' && f.type === 'group');
+  const remaining = total - played;
+
+  return (
+    <div>
+      {/* Big score card */}
+      <div className="series-score-card">
+        <div className="series-player">
+          <TeamAvatar name={teamA.name} size={52} style={{ margin: '0 auto 0.5rem' }} />
+          <div className="series-player-name">{teamA.name}</div>
+          <div className={`series-big-score${teamA.wins > teamB.wins ? ' series-score-leading' : ''}`}>
+            {teamA.wins}
+          </div>
+        </div>
+        <div className="series-divider">
+          <div className="series-vs">vs</div>
+          <div className="series-played">{played}/{total} played</div>
+        </div>
+        <div className="series-player">
+          <TeamAvatar name={teamB.name} size={52} style={{ margin: '0 auto 0.5rem' }} />
+          <div className="series-player-name">{teamB.name}</div>
+          <div className={`series-big-score${teamB.wins > teamA.wins ? ' series-score-leading' : ''}`}>
+            {teamB.wins}
+          </div>
+        </div>
+      </div>
+
+      {/* Status */}
+      <div className={`series-status${decided ? ' series-status-decided' : ''}`}>
+        {decided && winner ? '🏆 ' : ''}{statusText}
+        {remaining > 0 && !decided && <span className="series-remaining"> · {remaining} left</span>}
+      </div>
+
+      {/* Match-by-match log */}
+      {completed.length > 0 && (
+        <div className="series-match-log">
+          <div className="series-log-label">Match Results</div>
+          {completed.map((f, idx) => {
+            const winnerId = f.winner?._id?.toString() ?? f.winner?.toString();
+            const winnerName = winnerId === f.homeTeam?._id?.toString()
+              ? f.homeTeam?.name
+              : f.awayTeam?.name;
+            return (
+              <div key={f._id} className="series-log-row">
+                <span className="series-log-num">Match {idx + 1}</span>
+                <span className="series-log-result">
+                  {f.resultNote || (winnerName ? `${winnerName} won` : 'No result')}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Floating star particle — purely decorative */
 const CHAMP_STARS = Array.from({ length: 14 }, (_, i) => ({
   icon:  ['⭐','🌟','✨','💫'][i % 4],
@@ -1422,6 +1532,19 @@ export default function TournamentDetail() {
     if (activeTab === 'standings') loadStandings();
   }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** For bilateral series: auto-generate fixtures the moment the 2nd player is added */
+  useEffect(() => {
+    if (
+      tournament?.format === 'bilateral' &&
+      teams.length === 2 &&
+      !tournament?.fixturesGenerated
+    ) {
+      generateFixtures(tournament._id, 'bilateral')
+        .then(() => loadData())
+        .catch(() => {});
+    }
+  }, [teams.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function handleFixturesGenerated() { await loadData(); }
 
   async function handlePlayoffsGenerated() {
@@ -1448,12 +1571,19 @@ export default function TournamentDetail() {
   const statusLabel      = allPlayed ? 'Completed' : totalMatches > 0 ? 'Ongoing' : STATUS_LABEL[tournament.status];
   const statusClass      = allPlayed ? 'badge-completed' : totalMatches > 0 ? 'badge-active' : STATUS_CLASS[tournament.status];
 
-  /* Tabs: always show Teams, Fixtures, Standings.
-     Show Playoffs tab when fixtures are generated (it handles its own empty state). */
-  const tabs = [
+  const isBilateral = tournament.format === 'bilateral';
+
+  /* Bilateral series has different tab set — no playoffs, Standings → Series */
+  const tabs = isBilateral ? [
     ...(tournament.status === 'completed' ? [{ key: 'champion', label: '🏆 Champion' }] : []),
-    { key: 'teams', label: 'Teams' },
-    { key: 'fixtures', label: 'Group Stage' },
+    { key: 'teams',     label: 'Teams' },
+    { key: 'fixtures',  label: 'Matches' },
+    { key: 'series',    label: '📊 Series' },
+    ...(completedMatches > 0 ? [{ key: 'highlights', label: '⭐ Highlights' }] : []),
+  ] : [
+    ...(tournament.status === 'completed' ? [{ key: 'champion', label: '🏆 Champion' }] : []),
+    { key: 'teams',     label: 'Teams' },
+    { key: 'fixtures',  label: 'Group Stage' },
     ...(tournament.fixturesGenerated ? [{ key: 'playoffs', label: tournament.playoffGenerated ? '🏆 Playoffs' : 'Playoffs' }] : []),
     { key: 'standings', label: 'Standings' },
     ...(completedMatches > 0 ? [{ key: 'highlights', label: '⭐ Highlights' }] : []),
@@ -1537,6 +1667,9 @@ export default function TournamentDetail() {
           )}
           {activeTab === 'highlights' && (
             <HighlightsTab tournamentId={id} />
+          )}
+          {activeTab === 'series' && (
+            <SeriesTab tournamentId={id} fixtures={fixtures} tournament={tournament} />
           )}
           {activeTab === 'champion' && (
             <ChampionTab

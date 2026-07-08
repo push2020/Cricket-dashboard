@@ -9,8 +9,9 @@ const tournamentSchema = new mongoose.Schema(
     status:            { type: String, enum: ['upcoming', 'active', 'completed'], default: 'upcoming' },
     fixturesGenerated: { type: Boolean, default: false },
     playoffGenerated:  { type: Boolean, default: false },
-    // 'standard' = regular round-robin; 'pool' = 2-pool double round-robin
-    format:  { type: String, enum: ['standard', 'pool'], default: 'standard' },
+    // 'standard' = regular round-robin; 'pool' = 2-pool double round-robin; 'bilateral' = N-match series between 2 teams
+    format:          { type: String, enum: ['standard', 'pool', 'bilateral'], default: 'standard' },
+    numberOfMatches: { type: Number, default: 1 },  // bilateral only
     poolA:   [{ type: ObjectId, ref: 'Team' }],
     poolB:   [{ type: ObjectId, ref: 'Team' }],
   },

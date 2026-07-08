@@ -5,6 +5,7 @@ const Fixture                                       = require('../models/Fixture
 const { generateRoundRobin, generateDoubleRoundRobin } = require('../utils/roundRobin');
 const { computeStandings }                          = require('../utils/standings');
 const { computeTournamentStats }                    = require('../utils/tournamentStats');
+const { computeSeriesResult }                       = require('../utils/bilateralSeries');
 
 /* ── helpers ── */
 
@@ -77,12 +78,22 @@ router.get('/', async (_req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { name, description, overs } = req.body;
+    const { name, description, overs, format, numberOfMatches } = req.body;
     if (!name?.trim()) return res.status(400).json({ message: 'Tournament name is required' });
     const oversNum = Number(overs);
     if (!overs || oversNum < 1 || !Number.isInteger(oversNum))
       return res.status(400).json({ message: 'Overs must be a whole number of 1 or more' });
-    const tournament = await Tournament.create({ name: name.trim(), description: description?.trim() || '', overs: oversNum });
+
+    const isBilateral = format === 'bilateral';
+    const nMatches    = isBilateral ? Math.max(1, Number(numberOfMatches) || 1) : 1;
+
+    const tournament = await Tournament.create({
+      name: name.trim(),
+      description: description?.trim() || '',
+      overs: oversNum,
+      format: isBilateral ? 'bilateral' : 'standard',
+      numberOfMatches: nMatches,
+    });
     res.status(201).json(tournament);
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
@@ -154,7 +165,10 @@ router.post('/:id/fixtures/generate', async (req, res) => {
     const teams = await Team.find({ tournamentId: req.params.id });
     if (teams.length < 2) return res.status(400).json({ message: 'Need at least 2 teams to generate fixtures' });
 
-    const format = req.body.format === 'pool' ? 'pool' : 'standard';
+    const tournamentFormat = tournament.format ?? 'standard';
+    const format = req.body.format === 'pool' ? 'pool'
+                 : tournamentFormat === 'bilateral' ? 'bilateral'
+                 : 'standard';
 
     /* ── Pool format ── */
     if (format === 'pool') {
@@ -198,6 +212,37 @@ router.post('/:id/fixtures/generate', async (req, res) => {
         poolA: poolATeams.length,
         poolB: poolBTeams.length,
       });
+    }
+
+    /* ── Bilateral series ── */
+    if (format === 'bilateral') {
+      if (teams.length !== 2)
+        return res.status(400).json({ message: 'Bilateral series requires exactly 2 teams' });
+
+      const [teamA, teamB] = teams;
+      const n = tournament.numberOfMatches ?? 1;
+      const fixtures = [];
+
+      for (let i = 0; i < n; i++) {
+        // Alternate home/away each match for fairness
+        const isOdd    = i % 2 === 0;
+        const homeTeam = isOdd ? teamA._id.toString() : teamB._id.toString();
+        const awayTeam = isOdd ? teamB._id.toString() : teamA._id.toString();
+        fixtures.push({
+          tournamentId: req.params.id,
+          homeTeam, awayTeam,
+          round: i + 1,
+          type: 'group', status: 'scheduled',
+          ...randomCricketPair(),
+          homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT,
+        });
+      }
+
+      await Fixture.insertMany(fixtures);
+      tournament.fixturesGenerated = true;
+      tournament.status = 'active';
+      await tournament.save();
+      return res.json({ message: `Bilateral series generated (${n} matches)`, count: n });
     }
 
     /* ── Standard round-robin ── */
@@ -305,6 +350,22 @@ router.post('/:id/playoffs/generate', async (req, res) => {
 });
 
 /* ─────────────────────────────── Standings & Stats ──────────────────── */
+
+// GET /api/tournaments/:id/series-result  (bilateral series only)
+router.get('/:id/series-result', async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.id);
+    if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
+    if (tournament.format !== 'bilateral')
+      return res.status(400).json({ message: 'Not a bilateral series tournament' });
+
+    const [teams, fixtures] = await Promise.all([
+      Team.find({ tournamentId: req.params.id }).lean(),
+      Fixture.find({ tournamentId: req.params.id }).lean(),
+    ]);
+    res.json(computeSeriesResult(teams, fixtures));
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
 
 // GET /api/tournaments/:id/standings  (group-stage overall)
 router.get('/:id/standings', async (req, res) => {

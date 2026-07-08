@@ -137,6 +137,9 @@ export default function Home() {
                 )}
                 <div className="tournament-meta">
                   <span>🎯 {t.overs} overs</span>
+                  {t.format === 'bilateral' && (
+                    <span className="bilateral-badge">🤝 Series ({t.numberOfMatches}M)</span>
+                  )}
                 </div>
                 <div className="divider" style={{ margin: '0.85rem 0' }} />
                 {t.status !== 'completed' && (
