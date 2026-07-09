@@ -943,19 +943,12 @@ function StandingsTab({ standings, tournament, fixtures, teamsCount, poolStandin
   if (loading) {
     return <div className="loading-wrap"><div className="spinner" />Calculating standings…</div>;
   }
-  if (standings.length === 0) {
-    return (
-      <div className="empty-state">
-        <div className="empty-state-icon">📊</div>
-        <div className="empty-state-title">No standings yet</div>
-        <div className="empty-state-desc">Standings appear once matches are played.</div>
-      </div>
-    );
-  }
 
   const isPool = tournament?.format === 'pool';
 
-  // Pool format: show two separate tables instead of one combined table
+  // Pool format: show two separate tables.
+  // This check MUST come before the standings.length === 0 guard because
+  // standings is always [] for pool format (only poolStandings is populated).
   if (isPool && poolStandings) {
     return (
       <div>
@@ -972,6 +965,17 @@ function StandingsTab({ standings, tournament, fixtures, teamsCount, poolStandin
             <PoolStandingsTable rows={poolStandings.poolB ?? []} qualifyCount={2} />
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // Non-pool: show empty state if no group matches played yet
+  if (standings.length === 0) {
+    return (
+      <div className="empty-state">
+        <div className="empty-state-icon">📊</div>
+        <div className="empty-state-title">No standings yet</div>
+        <div className="empty-state-desc">Standings appear once matches are played.</div>
       </div>
     );
   }
