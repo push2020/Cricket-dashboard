@@ -907,7 +907,10 @@ function PlayoffsTab({ tournament, fixtures, standings, poolStandings, teamsCoun
 }
 
 /** Mini standings table shared by pool A / pool B display */
-function PoolStandingsTable({ rows, qualifyCount }) {
+function PoolStandingsTable({ rows, qualifyCount, scheduledFixtures = [] }) {
+  // Use mathematical qualification — not just position
+  const qualifiedIds = computeQualifiedIds(rows, scheduledFixtures, qualifyCount);
+
   return (
     <div className="standings-table-wrap">
       <table className="standings-table">
@@ -918,20 +921,24 @@ function PoolStandingsTable({ rows, qualifyCount }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, idx) => (
-            <tr key={row.team._id} className={idx < qualifyCount ? 'qualifier-row' : ''}>
+          {rows.map((row, idx) => {
+            const teamId = (row.team._id ?? row.team).toString();
+            const isQual = qualifiedIds.has(teamId);
+            return (
+            <tr key={row.team._id} className={isQual ? 'qualifier-row' : ''}>
               <td className="col-pos">
-                <span className={`position-indicator${idx < qualifyCount ? ' top' : ''}`}>{idx + 1}</span>
+                <span className={`position-indicator${isQual ? ' top' : ''}`}>{idx + 1}</span>
               </td>
               <td className="col-team">
                 {row.team.name}
-                {idx < qualifyCount && <span className="qualify-badge">Q</span>}
+                {isQual && <span className="qualify-badge">Q</span>}
               </td>
               <td>{row.played}</td><td>{row.won}</td><td>{row.lost}</td>
               <td className="col-pts">{row.points}</td>
               <td className={`col-nrr ${row.nrr >= 0 ? 'positive' : 'negative'}`}>{formatNrr(row.nrr)}</td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -958,11 +965,19 @@ function StandingsTab({ standings, tournament, fixtures, teamsCount, poolStandin
         <div className="pool-standings-grid">
           <div>
             <div className="pool-section-header pool-a-header" style={{ marginBottom: '0.75rem' }}>Pool A</div>
-            <PoolStandingsTable rows={poolStandings.poolA ?? []} qualifyCount={2} />
+            <PoolStandingsTable
+              rows={poolStandings.poolA ?? []}
+              qualifyCount={2}
+              scheduledFixtures={fixtures?.filter(f => f.status === 'scheduled' && f.pool === 'A') ?? []}
+            />
           </div>
           <div>
             <div className="pool-section-header pool-b-header" style={{ marginBottom: '0.75rem' }}>Pool B</div>
-            <PoolStandingsTable rows={poolStandings.poolB ?? []} qualifyCount={2} />
+            <PoolStandingsTable
+              rows={poolStandings.poolB ?? []}
+              qualifyCount={2}
+              scheduledFixtures={fixtures?.filter(f => f.status === 'scheduled' && f.pool === 'B') ?? []}
+            />
           </div>
         </div>
       </div>
@@ -988,12 +1003,11 @@ function StandingsTab({ standings, tournament, fixtures, teamsCount, poolStandin
   const scheduledGroupFixtures = !tournament?.playoffGenerated && fixtures
     ? fixtures.filter((f) => f.status === 'scheduled' && (f.type ?? 'group') === 'group')
     : [];
-  // After playoffs are generated every top-N team has definitively qualified.
-  // Before that, only show Q when a spot is mathematically clinched.
+  // Always use mathematical qualification — never show Q based on position alone.
+  // When all group matches are done, computeQualifiedIds still returns the correct
+  // set because remaining = 0 for everyone and the points comparison holds.
   const qualifiedIds = hasPlayoffs
-    ? tournament?.playoffGenerated
-      ? new Set(standings.slice(0, qualifyCount).map((r) => (r.team._id ?? r.team).toString()))
-      : computeQualifiedIds(standings, scheduledGroupFixtures, qualifyCount)
+    ? computeQualifiedIds(standings, scheduledGroupFixtures, qualifyCount)
     : new Set();
 
   return (
