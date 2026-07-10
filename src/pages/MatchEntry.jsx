@@ -180,20 +180,18 @@ export default function MatchEntry() {
     if (status === 'completed' && (homeInn.runs === '' || awayInn.runs === ''))
       return setError('Please enter runs for both teams.');
 
+    // Always use the tournament's fixed overs — never the previously stored value.
+    // This guarantees NRR is always computed with a consistent denominator.
     const tournamentOvers = fixture.tournamentId?.overs ?? 0;
     const resultNote = status === 'abandoned'
       ? 'Match abandoned'
       : buildResultNote(firstInnTeam, secondInnTeam, firstInn, secondInn, winnerId);
 
-    // Use actual overs played; fall back to tournament overs when left blank
-    const homeOvers = homeInn.overs !== '' ? parseFloat(homeInn.overs) : tournamentOvers;
-    const awayOvers = awayInn.overs !== '' ? parseFloat(awayInn.overs) : tournamentOvers;
-
     try {
       setSubmitting(true);
       await enterResult(id, {
-        homeInnings: { runs: Number(homeInn.runs) || 0, wickets: Number(homeInn.wickets) || 0, overs: homeOvers },
-        awayInnings: { runs: Number(awayInn.runs) || 0, wickets: Number(awayInn.wickets) || 0, overs: awayOvers },
+        homeInnings: { runs: Number(homeInn.runs) || 0, wickets: Number(homeInn.wickets) || 0, overs: tournamentOvers },
+        awayInnings: { runs: Number(awayInn.runs) || 0, wickets: Number(awayInn.wickets) || 0, overs: tournamentOvers },
         winner: status === 'completed' ? winnerId || null : null,
         resultNote,
         tossWinner: tossWinnerId || null,

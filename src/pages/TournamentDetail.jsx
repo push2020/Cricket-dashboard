@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import TeamAvatar from '../components/TeamAvatar';
 import {
   getTournament,
@@ -1477,6 +1477,7 @@ function ChampionTab({ tournament, fixtures, standings, poolStandings }) {
 export default function TournamentDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [tournament,       setTournament]       = useState(null);
   const [teams,            setTeams]            = useState([]);
@@ -1544,7 +1545,9 @@ export default function TournamentDetail() {
     }
   }
 
-  useEffect(() => { loadData(); }, [loadData]);
+  // Re-run loadData on every navigation to this page (location.key changes on each visit).
+  // This ensures standings & fixtures are always fresh after editing a match and coming back.
+  useEffect(() => { loadData(); }, [loadData, location.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (activeTab === 'standings') loadStandings();
