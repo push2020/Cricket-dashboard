@@ -12,10 +12,11 @@ function toDecimalOvers(cricketOvers) {
 
 /**
  * Computes the sorted points table.
+ * NRR is summed per match — each match's NRR is calculated independently then added.
  * Works with both Mongoose documents and plain JS objects — all IDs are
  * normalised via .toString() before comparison.
  *
- * @param {object[]} teams  - Array of team documents { _id, name }
+ * @param {object[]} teams    - Array of team documents { _id, name }
  * @param {object[]} fixtures - Populated fixture documents (group stage only, all statuses)
  * @returns {object[]} Standings rows sorted by rank
  */
@@ -26,7 +27,7 @@ function computeStandings(teams, fixtures) {
     const teamId = team._id.toString();
     let played = 0, won = 0, lost = 0, tied = 0;
     let runsScored = 0, runsConceded = 0;
-    let oversPlayedDecimal = 0, oversBowledDecimal = 0;
+    let nrr = 0;
 
     completed.forEach((f) => {
       const homeId   = (f.homeTeam?._id ?? f.homeTeam)?.toString();
@@ -39,17 +40,18 @@ function computeStandings(teams, fixtures) {
 
       played++;
 
-      if (isHome) {
-        runsScored        += f.homeInnings?.runs || 0;
-        runsConceded      += f.awayInnings?.runs || 0;
-        oversPlayedDecimal += toDecimalOvers(f.homeInnings?.overs || 0);
-        oversBowledDecimal += toDecimalOvers(f.awayInnings?.overs || 0);
-      } else {
-        runsScored        += f.awayInnings?.runs || 0;
-        runsConceded      += f.homeInnings?.runs || 0;
-        oversPlayedDecimal += toDecimalOvers(f.awayInnings?.overs || 0);
-        oversBowledDecimal += toDecimalOvers(f.homeInnings?.overs || 0);
-      }
+      const scored   = isHome ? (f.homeInnings?.runs || 0) : (f.awayInnings?.runs || 0);
+      const conceded = isHome ? (f.awayInnings?.runs || 0) : (f.homeInnings?.runs || 0);
+      const facedOv  = toDecimalOvers(isHome ? (f.homeInnings?.overs || 0) : (f.awayInnings?.overs || 0));
+      const bowledOv = toDecimalOvers(isHome ? (f.awayInnings?.overs || 0) : (f.homeInnings?.overs || 0));
+
+      runsScored   += scored;
+      runsConceded += conceded;
+
+      // Per-match NRR contribution
+      const bRate = facedOv  > 0 ? scored   / facedOv  : 0;
+      const wRate = bowledOv > 0 ? conceded / bowledOv : 0;
+      nrr += bRate - wRate;
 
       if (!winnerId) {
         tied++;
@@ -60,10 +62,8 @@ function computeStandings(teams, fixtures) {
       }
     });
 
-    const points      = won * 2 + tied;
-    const battingRate = oversPlayedDecimal > 0 ? runsScored   / oversPlayedDecimal : 0;
-    const bowlingRate = oversBowledDecimal > 0 ? runsConceded / oversBowledDecimal : 0;
-    const nrr         = parseFloat((battingRate - bowlingRate).toFixed(3));
+    const points = won * 2 + tied;
+    nrr = parseFloat(nrr.toFixed(3));
 
     return { team, played, won, lost, tied, points, nrr, runsScored, runsConceded };
   });
