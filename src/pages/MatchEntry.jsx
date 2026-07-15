@@ -180,9 +180,11 @@ export default function MatchEntry() {
     if (status === 'completed' && (homeInn.runs === '' || awayInn.runs === ''))
       return setError('Please enter runs for both teams.');
 
-    // Always use the tournament's fixed overs — never the previously stored value.
-    // This guarantees NRR is always computed with a consistent denominator.
+    // An innings that reaches the tournament's overs limit without being all
+    // out is naturally reported by the user; if the overs field is left
+    // blank, assume the full quota was used (the common case).
     const tournamentOvers = fixture.tournamentId?.overs ?? 0;
+    const resolveOvers = (innings) => (innings.overs !== '' ? Number(innings.overs) || 0 : tournamentOvers);
     const resultNote = status === 'abandoned'
       ? 'Match abandoned'
       : buildResultNote(firstInnTeam, secondInnTeam, firstInn, secondInn, winnerId);
@@ -190,8 +192,8 @@ export default function MatchEntry() {
     try {
       setSubmitting(true);
       await enterResult(id, {
-        homeInnings: { runs: Number(homeInn.runs) || 0, wickets: Number(homeInn.wickets) || 0, overs: tournamentOvers },
-        awayInnings: { runs: Number(awayInn.runs) || 0, wickets: Number(awayInn.wickets) || 0, overs: tournamentOvers },
+        homeInnings: { runs: Number(homeInn.runs) || 0, wickets: Number(homeInn.wickets) || 0, overs: resolveOvers(homeInn) },
+        awayInnings: { runs: Number(awayInn.runs) || 0, wickets: Number(awayInn.wickets) || 0, overs: resolveOvers(awayInn) },
         winner: status === 'completed' ? winnerId || null : null,
         resultNote,
         tossWinner: tossWinnerId || null,

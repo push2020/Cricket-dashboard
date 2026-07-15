@@ -295,8 +295,8 @@ router.post('/:id/playoffs/generate', async (req, res) => {
         populateFixtures(Fixture.find({ tournamentId: req.params.id, type: 'group', pool: 'B' })),
       ]);
 
-      const poolAStandings = computeStandings(poolATeams, poolAFixtures);
-      const poolBStandings = computeStandings(poolBTeams, poolBFixtures);
+      const poolAStandings = computeStandings(poolATeams, poolAFixtures, tournament.overs);
+      const poolBStandings = computeStandings(poolBTeams, poolBFixtures, tournament.overs);
 
       if (poolAStandings.length < 2 || poolBStandings.length < 2)
         return res.status(400).json({ message: 'Each pool needs at least 2 teams in standings' });
@@ -321,7 +321,7 @@ router.post('/:id/playoffs/generate', async (req, res) => {
     /* ── 3 teams: Direct Final ── */
     if (teams.length === 3) {
       const populatedFixtures = await populateFixtures(Fixture.find({ tournamentId: req.params.id, type: 'group' }));
-      const standings = computeStandings(teams, populatedFixtures);
+      const standings = computeStandings(teams, populatedFixtures, tournament.overs);
       if (standings.length < 2) return res.status(400).json({ message: 'Need at least 2 teams in standings' });
       const [first, second] = standings;
       await Fixture.create({ tournamentId: req.params.id, homeTeam: first.team._id, awayTeam: second.team._id, round: R, type: 'final', status: 'scheduled', ...randomCricketPair(), homeInnings: INNINGS_DEFAULT, awayInnings: INNINGS_DEFAULT });
@@ -332,7 +332,7 @@ router.post('/:id/playoffs/generate', async (req, res) => {
 
     /* ── 4+ teams: IPL format (Q1, Eliminator, Q2, Final) ── */
     const populatedFixtures = await populateFixtures(Fixture.find({ tournamentId: req.params.id, type: 'group' }));
-    const standings = computeStandings(teams, populatedFixtures);
+    const standings = computeStandings(teams, populatedFixtures, tournament.overs);
     if (standings.length < 4) return res.status(400).json({ message: 'Need at least 4 teams in standings for IPL playoffs' });
 
     const [first, second, third, fourth] = standings;
@@ -370,9 +370,11 @@ router.get('/:id/series-result', async (req, res) => {
 // GET /api/tournaments/:id/standings  (group-stage overall)
 router.get('/:id/standings', async (req, res) => {
   try {
+    const tournament = await Tournament.findById(req.params.id);
+    if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
     const teams    = await Team.find({ tournamentId: req.params.id });
     const fixtures = await populateFixtures(Fixture.find({ tournamentId: req.params.id, type: 'group' }));
-    res.json(computeStandings(teams, fixtures));
+    res.json(computeStandings(teams, fixtures, tournament.overs));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
@@ -391,8 +393,8 @@ router.get('/:id/pool-standings', async (req, res) => {
     ]);
 
     res.json({
-      poolA: computeStandings(poolATeams, poolAFixtures),
-      poolB: computeStandings(poolBTeams, poolBFixtures),
+      poolA: computeStandings(poolATeams, poolAFixtures, tournament.overs),
+      poolB: computeStandings(poolBTeams, poolBFixtures, tournament.overs),
     });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
